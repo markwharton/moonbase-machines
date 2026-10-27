@@ -126,14 +126,15 @@ fixed: { game: 'game-fixed' }
 The player's setting **Bugs fixed** (`play.js`, `fixed`) is offered only for a title that has one. With it on,
 `loadTitle` makes the program from the disk with the title's fixes made first (its `fixes` module, a function
 `fixed(statements, render)` that returns the statements with every fix made and stops on one that no longer fits),
-and the program takes the fixed version's name; the page starts again when the setting changes. A fixed version is a
-program from the disk: a scene's fixes are edits to the scene.
+and the program takes the fixed version's name; the page starts again when the setting changes.
 
 Because every statement is the original's, with its address, a fix is an edit to a known line, not a guess at what
-the game meant. Make the fixed script from the faithful one by edits that each check the line they change is the
-one they expect. A changed line keeps its address, and a line that is new has none. That keeps the fixed version
-the same game with only its bugs changed. When the faithful script is lifted again, the edits are made again, and
-one whose line has changed stops instead of editing the wrong line.
+the game meant, and the fixes are a list of such edits, never a second copy of the program: each names the
+statement it changes by its address and checks it is the one it expects, so that when the program is read again
+the edits are made again, and one whose line has changed stops instead of editing the wrong line. A changed line
+keeps its address, and a line that is new has none. That keeps the fixed version the same game with only its bugs
+changed. A title of scenes that needs a fix will take the same shape, its edits made to the scene's steps before
+they are compiled; none has needed one yet.
 
 Corrupted text can be fixed the same way where the text is in the code: a string a call takes inline after it, or a
 scene's `data` line. Text the game reads from its disk at run time is the game's data, `<name>.json`, not a
