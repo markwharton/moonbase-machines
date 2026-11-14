@@ -32,3 +32,4 @@ export * as remakeRaster from './remake/raster.js';
 export * as remakeScript from './remake/script.js';
 export * as remakeVector from './remake/vector.js';
 export * as remakeView from './remake/view.js';
+export * as remakeFaces from './remake/faces.js';
