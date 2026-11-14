@@ -9,13 +9,23 @@
 // /packages/, where the page's import map finds them. A folder with an index.html of its own is served as it is.
 //
 //   moonbase-play [folder] [port] [host]     the folder (play/ unless given)
+//   moonbase-play --help                     this, and nothing started; any other flag refused
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const [folder = 'play', port = 8002, host = '127.0.0.1'] = process.argv.slice(2);
+// (--help or -h: the usage, from the head of this file; another flag, refused, as no flag is the folder)
+const USAGE = `moonbase-play [folder] [port] [host]
+  A title played on this machine: its page at http://<host>:<port>/ (127.0.0.1:8002 unless given), the folder
+  (play/ unless given) holding title/ where it is remade and its games' data, <name>.json each.
+  /?way=original for the Original beside a Remake; /?game=<name> where it has more than one game.`;
+const given = process.argv.slice(2);
+if (given.some(a => a === '--help' || a === '-h')) { console.log(USAGE); process.exit(0); }
+const flag = given.find(a => a.startsWith('-'));
+if (flag) { console.error(`moonbase-play: no such flag, ${flag}\n\n${USAGE}`); process.exit(1); }
+const [folder = 'play', port = 8002, host = '127.0.0.1'] = given;
 const root = resolve(folder) + sep, packages = resolve('node_modules/@moonbase-machines') + sep;
 // (what a browser shows rather than downloads; anything else, a disk image among them, as bytes)
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json', '.css': 'text/css',

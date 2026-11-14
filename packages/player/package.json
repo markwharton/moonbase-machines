@@ -10,8 +10,8 @@
     "./*": "./*"
   },
   "bin": {
-    "moonbase-compile": "./bin/moonbase-compile.mjs",
-    "moonbase-play": "./bin/moonbase-play.mjs"
+    "moonbase-compile": "bin/moonbase-compile.mjs",
+    "moonbase-play": "bin/moonbase-play.mjs"
   },
   "dependencies": {
     "@moonbase-machines/apple2e": "0.16.0",
