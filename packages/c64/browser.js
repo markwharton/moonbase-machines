@@ -45,20 +45,37 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
     if (since >= 2) { m.key(key[0], key[1], false); if (shift) m.key(1, 7, false); return; }
     held.push([key[0], key[1], 2 - since]); if (shift) held.push([1, 7, 2 - since]);
   };
+  // The arrows are the 64's two cursor keys, down and right, each with Shift for up and left. Two of them down at once
+  // would show the 64 a mix of keys that is no arrow. So the 64 sees only the arrow pressed last. Letting that arrow go
+  // shows the one held before it.
+  const arrows = [];   // the arrows held, in the order they were pressed
+  let shown = null;   // the cursor key down for them now: { key: [column, row], shifted }
+  const showArrow = () => {
+    const want = arrows.length ? CURSOR[arrows.at(-1)] : null;
+    if (!want) { if (shown) release(shown.key, shown.shifted); shown = null; return; }
+    const same = shown && shown.key[0] === want[0] && shown.key[1] === want[1];
+    if (shown && !same) m.key(shown.key[0], shown.key[1], false);
+    if (shown?.shifted && !want[2]) m.key(1, 7, false);
+    const key = same ? shown.key : want.slice(0, 2);
+    if (!same) { m.key(key[0], key[1], true); pressed.set(key, frame); }
+    if (want[2]) m.key(1, 7, true);
+    shown = { key, shifted: !!want[2] };
+  };
   listen('keydown', e => {
     if (ignore(e)) return;
     onKey(e);
     if (fire && e.key === fire) { keyStick |= FIRE; stick(); e.preventDefault(); return; }
     // An arrow already down as a cursor key stays one until it is let go, even if fire is pressed meanwhile.
-    if (keyStick & FIRE && STICK[e.key] && !down.has(e.code)) { keyStick |= STICK[e.key]; stick(); e.preventDefault(); return; }
+    if (keyStick & FIRE && STICK[e.key] && !arrows.includes(e.key)) { keyStick |= STICK[e.key]; stick(); e.preventDefault(); return; }
     if (e.metaKey || e.repeat) return;
+    if (CURSOR[e.key]) { if (!arrows.includes(e.key)) arrows.push(e.key); showArrow(); e.preventDefault(); return; }
     if (MODIFIERS[e.key]) { m.key(...MODIFIERS[e.key], true); e.preventDefault(); }
-    const letter = /^Key([A-Z])$/.exec(e.code)?.[1]?.toLowerCase(), cursor = CURSOR[e.key];
-    const shifted = letter || cursor ? null : SHIFTED[e.key], key = cursor ? cursor.slice(0, 2) : letter ? MATRIX[letter] : shifted ? MATRIX[shifted] : MATRIX[e.key] || MATRIX[e.key.toLowerCase()];
+    const letter = /^Key([A-Z])$/.exec(e.code)?.[1]?.toLowerCase();
+    const shifted = letter ? null : SHIFTED[e.key], key = letter ? MATRIX[letter] : shifted ? MATRIX[shifted] : MATRIX[e.key] || MATRIX[e.key.toLowerCase()];
     if (!key) { if (MODIFIERS[e.key]) e.preventDefault(); return; }
-    // (the left shift: a letter's graphic, a shifted sign, the cursor going up or left, and Shift with a function key,
+    // (the left shift: a letter's graphic, a shifted sign, and Shift with a function key,
     // Home or DEL, F2, F4, F6 and F8, CLR and INST being shift with F1, F3, F5 and F7, HOME and DEL on the 64)
-    if (cursor ? cursor[2] : letter ? (upper() ? e.altKey : e.shiftKey) : shifted || (e.key.length === 1 && e.key !== e.key.toLowerCase() && !/[0-9]/.test(e.key)) || (e.shiftKey && WITH_SHIFT.test(e.key))) m.key(1, 7, true);
+    if (letter ? (upper() ? e.altKey : e.shiftKey) : shifted || (e.key.length === 1 && e.key !== e.key.toLowerCase() && !/[0-9]/.test(e.key)) || (e.shiftKey && WITH_SHIFT.test(e.key))) m.key(1, 7, true);
     // (Control held, as the event says, the Commodore key down with the key, if Control's own
     // keydown has not put it there, and let go with it)
     const [cc, cr] = MODIFIERS.Control, cbm = e.ctrlKey && !(m.keys[cc] & 1 << cr) ? MODIFIERS.Control : null;
@@ -70,6 +87,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
   listen('keyup', e => {
     if (fire && e.key === fire) { keyStick = 0; stick(); return; }
     if (STICK[e.key] && keyStick & STICK[e.key]) { keyStick &= ~STICK[e.key]; stick(); return; }
+    if (CURSOR[e.key]) { const i = arrows.indexOf(e.key); if (i >= 0) { arrows.splice(i, 1); showArrow(); } return; }
     if (MODIFIERS[e.key]) m.key(...MODIFIERS[e.key], false);
     const key = down.get(e.code);
     if (key) { release(key, true); if (withCbm.delete(e.code)) release(MODIFIERS.Control, false); down.delete(e.code); } else m.key(1, 7, false);
@@ -77,7 +95,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
   // the page left (another window, another tab, Cmd-Tab): the browser sends no keyup for what was
   // held, so everything is let go, the keys, the joystick and fire, or a key (CTRL by Tab) would stay
   // down and every key after it be read wrongly
-  const letGo = () => { keyStick = 0; m.keys.fill(0); m.joystick = 0; down.clear(); held.length = 0; pressed.clear(); withCbm.clear(); padBits = 0; padStop = false; };
+  const letGo = () => { keyStick = 0; arrows.length = 0; shown = null; m.keys.fill(0); m.joystick = 0; down.clear(); held.length = 0; pressed.clear(); withCbm.clear(); padBits = 0; padStop = false; };
   // a gamepad, read each frame in the browser's standard mapping: the D-pad or the left stick
   // (pushed past PAD_DEAD) the joystick in port 2, A or B its fire, Start RUN/STOP; let go with the
   // pad

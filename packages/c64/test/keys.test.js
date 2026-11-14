@@ -33,6 +33,44 @@ test('an arrow is a cursor key and nothing else: down and right as they are, up 
   }
 });
 
+test('of the arrows held, the 64 sees the one pressed last, and letting it go brings back the one before', () => {
+  const { keys, press, lift, down } = page();
+  const settle = () => { for (let i = 0; i < 3; i++) keys.frame(); };
+  press('ArrowUp');
+  assert.deepEqual(down(), [[0, 7], SHIFT], 'up');
+  press('ArrowRight');
+  assert.deepEqual(down(), [[0, 2]], 'right, with up still held');
+  press('ArrowLeft');
+  assert.deepEqual(down(), [[0, 2], SHIFT], 'left, with up and right still held');
+  lift('ArrowLeft'); settle();
+  assert.deepEqual(down(), [[0, 2]], 'left let go: right again');
+  lift('ArrowRight'); settle();
+  assert.deepEqual(down(), [[0, 7], SHIFT], 'right let go: up again');
+  lift('ArrowUp'); settle();
+  assert.deepEqual(down(), [], 'every arrow let go');
+});
+
+test('an arrow pressed while another is held takes over, whichever was let go first', () => {
+  const { keys, press, lift, down } = page();
+  const settle = () => { for (let i = 0; i < 3; i++) keys.frame(); };
+  press('ArrowUp'); press('ArrowRight'); lift('ArrowUp'); settle();
+  assert.deepEqual(down(), [[0, 2]], 'right, up let go');
+  press('ArrowLeft');
+  assert.deepEqual(down(), [[0, 2], SHIFT], 'left, with right still held');
+  lift('ArrowRight'); settle();
+  assert.deepEqual(down(), [[0, 2], SHIFT], 'right let go: still left');
+});
+
+test('left still held as right goes down: right takes over, and stays when left is let go', () => {
+  const { keys, press, lift, down } = page();
+  press('ArrowLeft');
+  assert.deepEqual(down(), [[0, 2], SHIFT], 'left');
+  press('ArrowRight');
+  assert.deepEqual(down(), [[0, 2]], 'right, with left still held');
+  lift('ArrowLeft'); for (let i = 0; i < 3; i++) keys.frame();
+  assert.deepEqual(down(), [[0, 2]], 'left let go: still right');
+});
+
 test('Control is the Commodore key, Shift and Option nothing of their own, and none of them fire', () => {
   for (const [key, keys] of [['Control', [[7, 5]]], ['Shift', []], ['Alt', []]]) {
     const { m, press, down } = page();
