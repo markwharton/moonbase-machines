@@ -61,6 +61,10 @@ const ENGINES = { original: () => import('./engines/original.js'), card: () => i
 // its bugs fixed
 import { SOUND, PRINTER, FIXED } from './declared.js';
 import { control } from './settings.js';
+// the keys a browser moves the page by: on the play page they are the game's, never the page's, where nothing that
+// takes keys itself (a box to type in, a menu, a button) has them
+const SCROLL = new Set([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
+const ownKeys = t => t instanceof Element && !!t.closest('input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"]), [role="menu"], [role="menuitem"]');
 
 export async function play(options) {
   const { way = 'remake', slug, root, disk, settings, preview = false, words } = options;
@@ -137,6 +141,7 @@ export async function play(options) {
     // (`claim`), then the engine's: the event itself where it reads the keyboard, else the code pressed
     const keyed = e => {
       const k = code(e, kind), down = e.type === 'keydown';
+      if (down && SCROLL.has(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !ownKeys(e.target)) e.preventDefault();
       if (down && k !== undefined && !e.repeat && options.claim?.(k)) { e.preventDefault(); return; }
       if (down) handle.start?.();
       if (handle.key) { handle.key(e, k); return; }
