@@ -34,9 +34,26 @@ Each package makes its own when it is packed or published, so the file published
 <script type="module">import { machine } from '@moonbase-machines/c64';</script>
 ```
 
-A release is published with `npm run publish-packages` (`tools/publish.mjs`), after `pk ship` and with npm signed
-in. It publishes each package that the registry does not have at its version, in order, and stops at the first that
-fails. A run can be repeated: it skips the packages already published.
+## Releasing
+
+A release puts out every package at one version. It is made on the `develop` branch, with everything committed.
+
+1. `npm test`. Every test must pass.
+2. `pk changelog --dry-run`. It prints the release's version and its changelog, one line for each commit since the
+   last release. Read the lines before going on. A line that is wrong is fixed by rewording its commit, which can
+   be done only while the commit is not pushed.
+3. `pk ship`. It writes `CHANGELOG.md` and sets the version in `package.json` and in each package's own. It sets
+   each package's dependencies on the others to the same version (`tools/package-versions.mjs`). Then it tags the
+   release, moves `main` up to it, and pushes `main`, `develop` and the tag.
+4. `npm run publish-packages` (`tools/publish.mjs`), in a terminal where npm is signed in (`npm login`). It
+   publishes each package that the registry does not have at this version, in the order of the workspaces in
+   `package.json`, and stops at the first that fails. A run can be repeated: it skips the packages already
+   published. If npm asks for a one-time code, run it again with `-- --otp=<code>`.
+
+The registry can take a minute to show a new version (`npm view @moonbase-machines/player version`). A project
+that uses the packages can move to the new version once all seven show it.
+
+## Licence
 
 MIT, (c) 2026 Mark Wharton: see LICENSE, and each package's own. The titles, their disks and
 their pictures are not here and are not under this licence.
