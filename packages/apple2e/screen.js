@@ -10,6 +10,13 @@ import { FONT } from '@moonbase-machines/charset/font.js';
 // 0x28 * (r / 8); in 80 columns the auxiliary bank holds the even columns
 export const textRow = r => 0x400 + 0x80 * (r % 8) + 0x28 * ((r / 8) | 0);
 
+// a code of the text page as the character it shows, and whether it shows inverse (a code below $80; one that
+// flashes is shown inverse). Codes below $20 show as the capitals and signs from $40, and $7F as a space.
+export function textChar(code) {
+  const low = code & 0x7f, ch = low < 0x20 ? low + 0x40 : low === 0x7f ? 0x20 : low;
+  return { ch: String.fromCharCode(ch), inverse: !(code & 0x80) };
+}
+
 // the text screen as pixels, 560 by 384, white on black: a character is 7 dots by 8 rows, its
 // glyph 5 by 7 within, drawn two dots wide in 40 columns and one in 80. A code below $80 shows
 // inverse, or flashes; here it is inverse.
@@ -17,8 +24,8 @@ export function paintText(rgba, main, aux, col80, rows = [0, 24]) {
   const cols = col80 ? 80 : 40, cw = col80 ? 7 : 14;
   for (let r = rows[0]; r < rows[1]; r++) for (let c = 0; c < cols; c++) {
     const a = textRow(r) + (col80 ? c >> 1 : c), code = col80 && !(c & 1) ? aux[a] : main[a];
-    const inverse = !(code & 0x80), ch = (code & 0x7f) < 0x20 ? (code & 0x7f) + 0x40 : (code & 0x7f) === 0x7f ? 0x20 : code & 0x7f;
-    const glyph = FONT[ch - 0x20] || FONT[0];
+    const { ch, inverse } = textChar(code);
+    const glyph = FONT[ch.charCodeAt(0) - 0x20] || FONT[0];
     for (let gy = 0; gy < 8; gy++) for (let gx = 0; gx < 7; gx++) {
       const dot = gx >= 1 && gx <= 5 && gy < 7 ? (glyph[gx - 1] >> gy) & 1 : 0, on = dot !== (inverse ? 1 : 0);
       const v = on ? 255 : 0;

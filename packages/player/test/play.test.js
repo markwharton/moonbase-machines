@@ -245,3 +245,11 @@ test('a setting\'s control: a change takes effect at once, and one that cannot b
   assert.equal(why, 'offline');
   delete globalThis.document;
 });
+
+test('a text page code as its character: inverse below $80, the low codes as capitals, $7F as a space', async () => {
+  const { textChar } = await import('@moonbase-machines/apple2e/screen.js');
+  assert.deepEqual(textChar(0xc1), { ch: 'A', inverse: false });
+  assert.deepEqual(textChar(0x01), { ch: 'A', inverse: true });
+  assert.deepEqual(textChar(0xe1), { ch: 'a', inverse: false });
+  assert.deepEqual(textChar(0xff), { ch: ' ', inverse: false });
+});

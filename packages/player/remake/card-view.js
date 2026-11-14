@@ -17,7 +17,7 @@
 // `inset` (a title's, its title.js), when set on: the screen's band at the top, where it is (its rows above
 // `top` all white), its dots `move` moved `by`, to make room for a mini view; `banded`, whether the band was there
 // at the last painting.
-import { paintHires, paintText, rowStart, textRow } from '@moonbase-machines/apple2e/screen.js';
+import { paintHires, paintText, rowStart, textRow, textChar } from '@moonbase-machines/apple2e/screen.js';
 import { walk, shapeAt } from '@moonbase-machines/apple2e/shapes.js';
 import { reader } from './text-reader.js';
 import { WORDS, GRID } from './faces.js';
@@ -71,7 +71,7 @@ export class CardView {
     const out = [];
     const cell = (c, r, ch, inverse) => { if (ch === ' ' && !inverse) return; out.push({ grid: true, x: c * 14, y: r * 16, w: 14, h: 16, ch, ink: inverse ? '#000' : '#fff', paper: inverse ? [255, 255, 255] : [0, 0, 0] }); };
     const textRows = s.text ? [0, 24] : s.mixed ? [20, 24] : null;
-    if (textRows) for (let r = textRows[0]; r < textRows[1]; r++) for (let c = 0; c < 40; c++) { const [ch, inverse] = textChar(mem[textRow(r) + c]); cell(c, r, ch, inverse); }
+    if (textRows) for (let r = textRows[0]; r < textRows[1]; r++) for (let c = 0; c < 40; c++) { const { ch, inverse } = textChar(mem[textRow(r) + c]); cell(c, r, ch, inverse); }
     if (!s.text && this.read?.ready()) for (let r = 0; r < (s.mixed ? 20 : 24); r++) for (let c = 0; c < 40; c++) { const hit = this.read.cell(page, c, r); if (hit) cell(c, r, hit[0], hit[1]); }
     if (!s.text && this.text.shapes !== undefined) out.push(...this.standing(mem, page, px, s.mixed ? 160 : 192));
     for (const w of out) fill(px, w.x, w.y, w.w, w.h, w.paper);
@@ -127,11 +127,6 @@ export class CardView {
   }
 }
 
-// a character of the text page, and whether it is inverse (a code below $80; flashing is shown as inverse)
-function textChar(v) {
-  const low = v & 0x3f, ch = (v & 0x7f) >= 0x60 ? String.fromCharCode(v & 0x7f) : String.fromCharCode(low < 32 ? low + 64 : low);
-  return [ch, v < 0x80];
-}
 // (fills a box of the 560 by 384 pixels with one colour)
 function fill(px, x, y, w, h, [r, g, b]) {
   for (let j = Math.max(0, y); j < Math.min(384, y + h); j++) for (let i = Math.max(0, x); i < Math.min(560, x + w); i++) { const o = (j * 560 + i) * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; }
