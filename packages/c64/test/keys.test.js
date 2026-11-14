@@ -57,15 +57,20 @@ test('` is the 64\'s ←, \\ its £, and £ itself and _ still as they were, non
   }
 });
 
-test('a game that names Option its fire (CRAYON): Option held is the joystick\'s fire, the arrows still the cursor keys with it, and let go is fire let go', () => {
+test('a game that names Option its fire (CRAYON): Option held is the joystick\'s fire, the arrows with it the stick, and let go is fire let go', () => {
   const { m, press, lift, down } = page({ fire: 'Alt' });
   press('Alt', 'AltLeft');
   assert.equal(m.joystick, 16, 'fire');
   assert.deepEqual(down(), [], 'Option nothing else');
   press('ArrowDown', 'ArrowDown', { altKey: true });
-  assert.deepEqual(down(), [[0, 7]], 'the cursor down, Option held');
-  assert.equal(m.joystick, 16, 'fire still held');
+  assert.deepEqual(down(), [], 'with Option held an arrow is the stick, not the cursor');
+  assert.equal(m.joystick, 16 | 2, 'fire and down');
+  lift('ArrowDown', 'ArrowDown', { altKey: true });
+  assert.equal(m.joystick, 16, 'the stick back, fire held');
   lift('Alt', 'AltLeft');
   assert.equal(m.joystick, 0, 'fire let go');
+  press('ArrowDown');
+  assert.deepEqual(down(), [[0, 7]], 'without Option, the arrow the cursor key again');
+  assert.equal(m.joystick, 0, 'and not the stick');
   assert.throws(() => page({ fire: 'Control' }), /cannot be the fire/, 'a key macOS takes with the arrows refused');
 });
