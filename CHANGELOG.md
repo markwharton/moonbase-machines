@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.0] - 2026-11-14
+
+### Added
+
+- moonbase-play and moonbase-compile say how they are used for --help, and refuse a flag they do not have (345e82e)
+- a remake's clean text is drawn in Inter, and a grid of characters in JetBrains Mono, each falling back to the system's (c7981dd)
+- a card title that says how its text is drawn has its words drawn clean, Old style text bringing back the dots (f9c6bc5)
+
 ## [v0.16.0] - 2026-11-14
 
 ### Added
@@ -189,3 +197,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.14.0]: https://github.com/markwharton/moonbase/compare/v0.13.0...v0.14.0
 [v0.15.0]: https://github.com/markwharton/moonbase/compare/v0.14.0...v0.15.0
 [v0.16.0]: https://github.com/markwharton/moonbase/compare/v0.15.0...v0.16.0
+[v0.17.0]: https://github.com/markwharton/moonbase/compare/v0.16.0...v0.17.0
