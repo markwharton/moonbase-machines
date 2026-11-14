@@ -1,9 +1,10 @@
 // The Remake's engine for a title of scenes, 'card' or 'vector' (play.js hands it the game): its scripts on the
 // remake's engine (remake/engine.js), its events drawn by the view on the stage, the view the machine's (an Apple's
 // hi-res page for a card title, CardView; a Commodore 64's, C64View; a vector title's pictures and text, View); the
-// settings it acts on (play.js `game.setting`): the old style text, where its view draws text of its own (View); the
-// mini view, where the page gives one and the title has a place for it. A run's events are drawn one after another, with a moment for each sound and flash, so that what the
-// original took time over takes time here too.
+// settings it acts on (play.js `game.setting`): Old style text, where the view draws clean text (View, and CardView
+// for a title with `text`), and the mini view, where the page gives one and the title has a place for it. A run's
+// events are drawn one after another, with a moment for each sound and flash, so that what the original took time
+// over takes time here too.
 import { makeEngine } from '../remake/load.js';
 
 // The settings this engine acts on (play.js `setting`): Old style text and the mini view.
