@@ -25,6 +25,10 @@
 //                              the type (one that is not falls back, said), else its default
 //   settings.set(def, value)   kept, for the next visit; a promise, kept when stored (a value not of the type throws)
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
+//
+//   control(def, settings, changed?)   its control, a <label>: a box for a boolean, a menu for an enum, its words from
+//                                      the declaration; a change kept, then changed(value). For the player's options
+//                                      line and for a site's own page of a person's settings alike
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';
@@ -33,6 +37,18 @@ export function check(type, value) {
   if (Array.isArray(type)) return type.includes(value);
   if (type === 'boolean') return typeof value === 'boolean';
   throw new Error('settings: no such type: ' + JSON.stringify(type));
+}
+
+export function control(def, settings, changed = () => {}) {
+  const label = document.createElement('label'), choice = Array.isArray(def.type), value = settings.get(def);
+  if (def.title) label.title = def.title;
+  const box = choice
+    ? Object.assign(document.createElement('select'), { innerHTML: def.type.map((v, i) => `<option value="${v}">${def.labels[i]}</option>`).join('') })
+    : Object.assign(document.createElement('input'), { type: 'checkbox' });
+  box.id = def.name;
+  if (choice) { box.value = value; label.append(def.words + ' ', box); } else { box.checked = value; label.append(box, ' ' + def.words); }
+  box.addEventListener('change', async () => { const v = choice ? box.value : box.checked; await settings.set(def, v); changed(v); });
+  return label;
 }
 
 export const describe = type => Array.isArray(type) ? 'one of ' + type.map(v => v === '' ? 'nothing' : v).join(', ') : 'on or off';

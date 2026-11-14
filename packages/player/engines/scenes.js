@@ -7,8 +7,7 @@
 import { makeEngine } from '../remake/load.js';
 
 // the settings this engine acts on (play.js `setting`): the old style text, a vector title's; the mini view
-const OLD_STYLE = { name: 'old-style', type: 'boolean', default: false, owner: 'person', words: 'Old style text' };
-const MINI = { name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
+import { OLD_STYLE, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';

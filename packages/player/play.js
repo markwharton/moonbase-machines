@@ -57,11 +57,10 @@ import { paperBox, phoneKeys, KEYS_MARKUP } from './parts.js';
 // each machine's screen, in its own dots: an Apple's hi-res page, a Commodore 64's frame, border and all
 const SCREENS = { prodos: [280, 192], dos33: [280, 192], c64: [384, 272] };
 const ENGINES = { original: () => import('./engines/original.js'), card: () => import('./engines/scenes.js'), vector: () => import('./engines/scenes.js') };
-// the settings the player itself acts on (settings.js): the speaker; a Commodore 64's printer; a title's version with
+// the settings the player itself acts on (declared.js): the speaker; a Commodore 64's printer; a title's version with
 // its bugs fixed
-const SOUND = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
-const PRINTER = { name: 'printer', type: 'boolean', default: true, owner: 'person', words: 'Printer' };
-const FIXED = { name: 'fixed', type: 'boolean', default: false, owner: 'person', words: 'Bugs fixed', title: 'The game with its bugs fixed: it starts again' };
+import { SOUND, PRINTER, FIXED } from './declared.js';
+import { control } from './settings.js';
 
 export async function play(options) {
   const { way = 'remake', slug, root, disk, settings, preview = false, words } = options;
@@ -79,15 +78,7 @@ export async function play(options) {
   const setting = (def, { first = false } = {}) => {
     const s = { value: settings.get(def), told: [], on(f) { this.told.push(f); return this; } };
     if (!settings.offered(def)) return s;
-    const label = document.createElement('label'), choice = Array.isArray(def.type);
-    if (def.title) label.title = def.title;
-    const control = choice
-      ? Object.assign(document.createElement('select'), { innerHTML: def.type.map((v, i) => `<option value="${v}">${def.labels[i]}</option>`).join('') })
-      : Object.assign(document.createElement('input'), { type: 'checkbox' });
-    control.id = def.name;
-    if (choice) { control.value = s.value; label.append(def.words + ' ', control); } else { control.checked = s.value; label.append(control, ' ' + def.words); }
-    control.addEventListener('change', () => { s.value = choice ? control.value : control.checked; settings.set(def, s.value); for (const f of s.told) f(s.value); });
-    line[first ? 'prepend' : 'append'](label);
+    line[first ? 'prepend' : 'append'](control(def, settings, v => { s.value = v; for (const f of s.told) f(v); }));
     return s;
   };
   try {

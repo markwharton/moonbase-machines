@@ -13,7 +13,7 @@ import { typing as typingOf } from '../keys.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
 
 // the setting the Apple's engine acts on (play.js `setting`): its pictures drawn as vectors over the screen
-const VECTORS = { name: 'vectors', type: 'boolean', default: false, owner: 'person', words: 'Draw the pictures as vectors' };
+import { VECTORS } from '../declared.js';
 
 export async function play(g) {
   g.stage.innerHTML = '<svg id="vector" viewBox="0 0 140 192" preserveAspectRatio="none"></svg><canvas id="screen" width="560" height="384" tabindex="0"></canvas>';
