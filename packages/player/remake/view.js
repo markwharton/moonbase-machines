@@ -18,7 +18,7 @@ import { colors } from '@moonbase-machines/apple2e/screen.js';
 const NS = 'http://www.w3.org/2000/svg';
 const X = x => x * 4, Y = y => y * 2;
 // (the faces of every remake's clean text, faces.js: Inter, and JetBrains Mono for the text screen's grid)
-import { WORDS as SANS, GRID as MONO } from './faces.js';
+import { WORDS as SANS, gridText, fit, fitWhenLoaded } from './faces.js';
 
 // The characters are the title's own. There was no Unicode in 1986: the engine's font has its
 // arrows at $5B to $5E, left, right, down and up, where ASCII has [ \ ] and ^. The engine's own
@@ -35,6 +35,7 @@ export class View {
   constructor(svg, { disk, volume, engine, extra = {}, press }) {
     this.svg = svg; this.engine = engine; this.extra = extra; this.press = press;
     svg.setAttribute('viewBox', '0 0 560 384');
+    fitWhenLoaded(svg);   // (the words fitted again once Inter has loaded)
     this.disk = disk.volumes[volume];
     this.pictures = new Map();
     for (const [name, f] of Object.entries(disk.volumes[volume])) if (/^PICS\d$/.test(name)) for (const p of pictures(Uint8Array.from(atob(f.data), c => c.charCodeAt(0)))) this.pictures.set(p.name, p.shapes);
@@ -120,7 +121,7 @@ export class View {
       let d = ''; for (let gx = 0; gx < 5; gx++) for (let gy = 0; gy < 7; gy++) if (glyph[gx] >> gy & 1) d += `M${x + 2 + gx * 2} ${y + gy * 2}h2v2h-2z`;
       if (d) this.el('path', { d, fill: ink }, g);
     } else if (ch !== ' ') {
-      const t = this.el('text', { x: x + 7, y: y + 12, fill: ink, 'font-family': MONO, 'font-size': 15, 'font-weight': 500, 'text-anchor': 'middle' }, g);
+      const t = this.el('text', gridText(x, y, ink), g);
       t.textContent = ch;
     }
     this.textCells[row][col] = { ch, inverse, el: g };
@@ -388,12 +389,7 @@ export class View {
   // Each word of a line, drawn at x 0, is measured once it is on the page and then moved to its
   // place and scaled to the width the engine gave it. Browsers differ in how they stretch text to
   // a length, and a measured scale looks the same in all of them.
-  fit(g) {
-    for (const el of g.querySelectorAll('text[data-width]')) {
-      const natural = el.getComputedTextLength();
-      if (natural > 0) el.setAttribute('transform', `translate(${el.dataset.x} 0) scale(${el.dataset.width / natural} 1)`);
-    }
-  }
+  fit(g) { fit(g); }
   // The old style: the engine's own glyphs, each set dot a square, over the glyph's cell in the
   // paper color. `chars` is a string, or the characters of a line with the ink each was given
   // (the part of a line before its first color takes the ink the line ends with). Returns the
