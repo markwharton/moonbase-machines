@@ -27,6 +27,8 @@ import { CPU } from '@moonbase-machines/mos6502/cpu.js';
 `npm install` links the packages to each other; `npm test` runs their tests; `npm run build`
 makes each package one file, `packages/<name>/dist/moonbase-<name>.js`, minified, with its source
 map: the others it uses imported by name (`@moonbase-machines/mos6502`), so a page maps each name to its file.
+A release is published with `npm run publish-packages` after `pk ship`, npm signed in (`tools/publish.mjs`): each
+package the registry does not have at its version, in order, stopping at the first that fails, so a run can be repeated.
 Each package makes its own when it is packed or published, so the file published is its own code and version:
 
 ```html

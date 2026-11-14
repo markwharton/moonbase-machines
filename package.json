@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "test": "node --test packages/*/test/*.test.js",
-    "build": "node tools/package-files.mjs"
+    "build": "node tools/package-files.mjs",
+    "publish-packages": "node tools/publish.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
