@@ -189,7 +189,7 @@ test('the commands: --help says how each is used and starts nothing; a flag they
 });
 
 test('a screen read back to its characters: a cell of the font as drawn, inverse, and a cell of picture', async () => {
-  const { reader } = await import('@moonbase-machines/player/remake/text-reader.js');
+  const { reader } = await import('@moonbase-machines/apple2e/hires-text.js');
   const { rowStart } = await import('@moonbase-machines/apple2e/screen.js');
   const mem = new Uint8Array(0x10000), font = 0x9400;
   // (a font of 95 characters, each its own 8 bytes, the colour bit set aside)

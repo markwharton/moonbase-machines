@@ -8,7 +8,7 @@
 // Old style text (`oldStyle`, set by engines/scenes.js) turns this off. `text` is one of:
 //   { font }              The title draws characters on the 40 by 24 grid from a font of 8 bytes a character,
 //                         indexed by ASCII code, at `font`. Every cell that matches a character is text
-//                         (text-reader.js).
+//                         (@moonbase-machines/apple2e/hires-text.js).
 //   { shapes, widths }    The toolkit's `print` draws words from an Applesoft shape table at `shapes`, moving on by
 //                         a width from the table at `widths`. The view keeps the words it was given (`apply`) and
 //                         draws one wherever its dots are on the screen. The cursor stays as dots.
@@ -17,9 +17,9 @@
 // `inset` (a title's, its title.js), when set on: the screen's band at the top, where it is (its rows above
 // `top` all white), its dots `move` moved `by`, to make room for a mini view; `banded`, whether the band was there
 // at the last painting.
-import { paintHires, paintText, rowStart, textRow, textChar } from '@moonbase-machines/apple2e/screen.js';
+import { paintHires, paintText, textRow, textChar } from '@moonbase-machines/apple2e/screen.js';
 import { walk, shapeAt } from '@moonbase-machines/apple2e/shapes.js';
-import { reader } from './text-reader.js';
+import { reader, dot } from '@moonbase-machines/apple2e/hires-text.js';
 import { WORDS, GRID } from './faces.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -82,7 +82,7 @@ export class CardView {
   // the toolkit draws on the hidden page before showing it, so a word may appear later.
   standing(mem, page, px, rows) {
     const { shapes, widths } = this.text, read = a => mem[a];
-    const bit = (x, y) => x >= 0 && x < 280 && y >= 0 && y < rows ? (mem[page + rowStart(y) + ((x / 7) | 0)] >> (x % 7)) & 1 : -1;
+    const bit = (x, y) => x >= 0 && x < 280 && y >= 0 && y < rows ? dot(mem, page, x, y) : -1;
     // (whether all the word's dots are on the shown page, in one colour)
     const stands = dots => { const lit = dots.filter(([x, y]) => bit(x, y) === 1).length; return lit ? lit === dots.length : dots.every(([x, y]) => bit(x, y) === 0); };
     // (the commonest colour among some dots, on the 560 by 384 pixels)

@@ -33,4 +33,3 @@ export * as remakeScript from './remake/script.js';
 export * as remakeVector from './remake/vector.js';
 export * as remakeView from './remake/view.js';
 export * as remakeFaces from './remake/faces.js';
-export * as remakeTextReader from './remake/text-reader.js';

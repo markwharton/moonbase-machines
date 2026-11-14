@@ -8,7 +8,10 @@
 //                             distinct characters). Call it before reading cells.
 //     read.cell(page, c, r)   the cell at column c (0 to 39) and row r (0 to 23) of the page at `page`:
 //                             [character, inverse], or null for picture or a solid cell
-import { rowStart } from '@moonbase-machines/apple2e/screen.js';
+//   dot(mem, page, x, y)      the dot at x (0 to 279) and y (0 to 191) of the hi-res page at `page`: 1 lit, 0 dark
+import { rowStart } from './screen.js';
+
+export const dot = (mem, page, x, y) => (mem[page + rowStart(y) + ((x / 7) | 0)] >> (x % 7)) & 1;
 
 export function reader(mem, { font }) {
   let glyphs = null;

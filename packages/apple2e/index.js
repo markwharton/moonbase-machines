@@ -7,6 +7,7 @@ export * as colors from './colors.js';
 export * as disk2 from './disk2.js';
 export * as dos33Disk from './dos33-disk.js';
 export * as hires from './hires.js';
+export * as hiresText from './hires-text.js';
 export * as machine from './machine.js';
 export * as mli from './mli.js';
 export * as prodos from './prodos.js';
