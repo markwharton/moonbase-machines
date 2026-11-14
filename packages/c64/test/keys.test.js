@@ -14,13 +14,13 @@ function page(options = {}) {
   const m = { keys: new Uint8Array(8), joystick: 0, vic: { r: Object.assign(new Uint8Array(0x40), { 0x18: 0x15 }) },
     key(column, row, down) { if (down) this.keys[column] |= 1 << row; else this.keys[column] &= ~(1 << row); } };
   const on = { keydown: [], keyup: [] };
-  keyboard(m, { listen: (type, f) => on[type].push(f), ...options });
+  const keys = keyboard(m, { listen: (type, f) => on[type].push(f), ...options });
   const event = (key, code, mods = {}) => ({ key, code, metaKey: false, repeat: false, ctrlKey: false, shiftKey: false, altKey: false, preventDefault() {}, ...mods });
   const press = (key, code = key, mods) => { const e = event(key, code, mods); on.keydown.forEach(f => f(e)); };
   const lift = (key, code = key, mods) => { const e = event(key, code, mods); on.keyup.forEach(f => f(e)); };
   // the 64's keys down, as [column, row], in order
   const down = () => [...m.keys].flatMap((bits, column) => Array.from({ length: 8 }, (_, row) => bits & 1 << row ? [[column, row]] : []).flat());
-  return { m, press, lift, down };
+  return { m, keys, press, lift, down };
 }
 const SHIFT = [1, 7];
 
@@ -74,4 +74,19 @@ test('a game that names Option its fire (CRAYON): Option held is the joystick\'s
   assert.deepEqual(down(), [[0, 7]], 'without Option, the arrow the cursor key again');
   assert.equal(m.joystick, 0, 'and not the stick');
   assert.throws(() => page({ fire: 'Control' }), /cannot be the fire/, 'a key macOS takes with the arrows refused');
+});
+
+test('an arrow held as a cursor key stays a cursor key when the fire key is pressed, and is let go with the arrow', () => {
+  const { m, keys, press, lift, down } = page({ fire: 'Alt' });
+  press('ArrowDown');
+  assert.deepEqual(down(), [[0, 7]], 'the cursor key down');
+  press('Alt', 'AltLeft');
+  // (the browser repeats the held arrow, now with Option held)
+  press('ArrowDown', 'ArrowDown', { altKey: true, repeat: true });
+  assert.equal(m.joystick, 16, 'fire, and not the stick: the arrow was already the cursor key');
+  lift('ArrowDown', 'ArrowDown', { altKey: true });
+  for (let i = 0; i < 3; i++) keys.frame();
+  assert.deepEqual(down(), [], 'the cursor key let go');
+  lift('Alt', 'AltLeft');
+  assert.equal(m.joystick, 0);
 });

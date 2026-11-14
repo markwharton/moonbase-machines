@@ -52,7 +52,8 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
     if (ignore(e)) return;
     onKey(e);
     if (fire && e.key === fire) { keyStick |= FIRE; stick(); e.preventDefault(); return; }
-    if (keyStick & FIRE && STICK[e.key]) { keyStick |= STICK[e.key]; stick(); e.preventDefault(); return; }
+    // An arrow already down as a cursor key stays one until it is let go, even if fire is pressed meanwhile.
+    if (keyStick & FIRE && STICK[e.key] && !down.has(e.code)) { keyStick |= STICK[e.key]; stick(); e.preventDefault(); return; }
     if (e.metaKey || e.repeat) return;
     if (MODIFIERS[e.key]) { m.key(...MODIFIERS[e.key], true); e.preventDefault(); }
     const letter = /^Key([A-Z])$/.exec(e.code)?.[1]?.toLowerCase(), cursor = CURSOR[e.key];
