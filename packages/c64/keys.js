@@ -1,5 +1,5 @@
 // The browser's keys as the C64's keyboard matrix, column then row: each key one key of the 64's, and nothing else.
-// The joystick in port 2 is a joystick, a gamepad plugged in (browser.js), never a key.
+// The joystick in port 2 is a gamepad plugged in (browser.js), and a key only where a game names its fire key.
 export const MATRIX = {
   Backspace: [0, 0], Delete: [0, 0], Enter: [0, 1], F7: [0, 3], F1: [0, 4], F3: [0, 5], F5: [0, 6],
   '3': [1, 0], w: [1, 1], a: [1, 2], '4': [1, 3], z: [1, 4], s: [1, 5], e: [1, 6],
@@ -21,3 +21,14 @@ export const WITH_SHIFT = /^(F[1357]|Home|Backspace|Delete)$/;
 export const MODIFIERS = { Control: [7, 5], Tab: [7, 2] };
 // the arrow keys are the cursor keys: down and right, and with shift, up and left
 export const CURSOR = { ArrowDown: [0, 7, 0], ArrowRight: [0, 2, 0], ArrowUp: [0, 7, 1], ArrowLeft: [0, 2, 1] };
+
+// The joystick's bits, in port 2: up, down, left, right and fire.
+export const JOYSTICK = { up: 1, down: 2, left: 4, right: 8, fire: 16 };
+// The arrow keys as the joystick's directions, while a game's fire key is held (browser.js).
+export const STICK = { ArrowUp: JOYSTICK.up, ArrowDown: JOYSTICK.down, ArrowLeft: JOYSTICK.left, ArrowRight: JOYSTICK.right };
+// The keys a game may use as fire. Only Option is allowed, because macOS passes Option with an arrow key on to the page.
+export const FIRE_KEYS = ['Alt'];
+// throws if a game names a fire key that is not allowed
+export function checkFire(fire, who) {
+  if (!FIRE_KEYS.includes(fire)) throw new Error(`${who}: ${fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
+}

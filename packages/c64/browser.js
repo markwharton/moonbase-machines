@@ -10,26 +10,23 @@
 //                                                      unless a player gives its own.
 //                                                      fire: a key that a game uses as the joystick's fire button, by
 //                                                      its KeyboardEvent.key. 'Alt', the Mac's Option key, is the only
-//                                                      one allowed (FIRE_KEYS). While it is held, it is fire and nothing
+//                                                      one allowed (keys.js FIRE_KEYS). While it is held, it is fire and nothing
 //                                                      else, and the arrow keys move the joystick instead of the
 //                                                      cursor, so the game sees fire held while moving.
 //   keys.press(column, row, frames)                    a key held for so many frames (RUN/STOP)
 //   const draw = painter(canvas)                       draw(m.vic.frame)
 //   pace(m, after, each)                               the machine run at 50 frames a second: each(frames) after
 //                                                      each frame, after(frames) each animation frame
-import { MATRIX, SHIFTED, WITH_SHIFT, CURSOR, MODIFIERS } from './keys.js';
+import { MATRIX, SHIFTED, WITH_SHIFT, CURSOR, MODIFIERS, JOYSTICK, STICK, checkFire } from './keys.js';
 import { pace as paced } from '@moonbase-machines/mos6502/pace.js';
 import { PALETTE, WIDTH, HEIGHT } from './vic.js';
 
 const PAD_DEAD = 0.4;   // a stick pushed less far than this is at rest (the dead zone)
 
-// The keys a game may use as fire. Only Option is allowed, because macOS passes Option with an arrow key on to the page.
-export const FIRE_KEYS = ['Alt'];
-const FIRE = 16;   // the joystick's fire button, as a bit
-const STICK = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8 };   // the joystick's directions, as bits, by arrow key
 
 export function keyboard(m, { ignore = () => false, onKey = () => {}, log = false, listen = (type, f) => window.addEventListener(type, f), fire = null } = {}) {
-  if (fire !== null && !FIRE_KEYS.includes(fire)) throw new Error(`keyboard: ${fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
+  if (fire !== null) checkFire(fire, 'keyboard');
+  const FIRE = JOYSTICK.fire;
   // The joystick bits from the keyboard: the fire key, and the arrows held with it. They are added to the gamepad's.
   let keyStick = 0;
   const stick = () => { m.joystick = padBits | keyStick; };
@@ -91,11 +88,11 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
     for (const p of navigator.getGamepads()) {
       if (!p || !p.connected) continue;
       const b = i => !!p.buttons[i]?.pressed, x = p.axes[0] ?? 0, y = p.axes[1] ?? 0;
-      if (b(12) || y < -PAD_DEAD) bits |= 1;
-      if (b(13) || y > PAD_DEAD) bits |= 2;
-      if (b(14) || x < -PAD_DEAD) bits |= 4;
-      if (b(15) || x > PAD_DEAD) bits |= 8;
-      if (b(0) || b(1)) bits |= 16;
+      if (b(12) || y < -PAD_DEAD) bits |= JOYSTICK.up;
+      if (b(13) || y > PAD_DEAD) bits |= JOYSTICK.down;
+      if (b(14) || x < -PAD_DEAD) bits |= JOYSTICK.left;
+      if (b(15) || x > PAD_DEAD) bits |= JOYSTICK.right;
+      if (b(0) || b(1)) bits |= JOYSTICK.fire;
       if (b(9)) stop = true;
     }
     padBits = bits; stick();

@@ -14,7 +14,7 @@
 //               { type: '1 PISTONS' }, ...] }] (keys.js `typing` says what a step is); a C64 game's, whose engine types
 //               them (engines/original.js); refused for another kind
 //     fire      the key a C64 game uses as the joystick's fire button, for a game played on the keyboard with the
-//               arrows and fire. It must be one of FIRE_KEYS (@moonbase-machines/c64/browser.js), which allows only
+//               arrows and fire. It must be one of FIRE_KEYS (@moonbase-machines/c64/keys.js), which allows only
 //               'Alt', the Mac's Option key. Refused for any other kind of game.
 //   data      the game's data, for <slug>.json
 //   images    an Apple game's disks, [{ name: <slug>-<n>.dsk or .2mg, bytes }]
@@ -22,7 +22,7 @@ import { prodos } from '@moonbase-machines/apple2e/prodos-disk.js';
 import { dos33 } from '@moonbase-machines/apple2e/dos33-disk.js';
 import { read as d64 } from '@moonbase-machines/c64/d64.js';
 import { typing } from './keys.js';
-import { FIRE_KEYS } from '@moonbase-machines/c64/browser.js';
+import { checkFire } from '@moonbase-machines/c64/keys.js';
 
 const b64 = bytes => Buffer.from(bytes).toString('base64');
 
@@ -56,7 +56,7 @@ export function gameData(slug, game) {
   }
   if (game.fire !== undefined) {
     if (game.kind !== 'c64') throw new Error(`${slug}: a fire key is a C64 game's only`);
-    if (!FIRE_KEYS.includes(game.fire)) throw new Error(`${slug}: ${game.fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
+    checkFire(game.fire, slug);
     data.fire = game.fire;
   }
   return { data, images };
