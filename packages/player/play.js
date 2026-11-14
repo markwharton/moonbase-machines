@@ -87,7 +87,8 @@ export async function play(options) {
   const setting = (def, { first = false } = {}) => {
     const s = { value: settings.get(def), told: [], on(f) { this.told.push(f); return this; } };
     if (!settings.offered(def)) return s;
-    line[first ? 'prepend' : 'append'](control(def, settings, v => { s.value = v; for (const f of s.told) f(v); }));
+    const tell = v => { s.value = v; for (const f of s.told) f(v); };
+    line[first ? 'prepend' : 'append'](control(def, settings, tell, err => say(`${def.words} was not kept: ${err.message}`, { error: true })));
     return s;
   };
   try {

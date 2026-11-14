@@ -26,10 +26,11 @@
 //   settings.set(def, value)   kept, for the next visit; a promise, kept when stored (a value not of the type throws)
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
 //
-//   control(def, settings, changed?)   a setting's control, as a <label>. It holds a box for a boolean or a menu for
-//                                      an enum, with its words from the declaration. A change is kept first, then
-//                                      changed(value) is called. The player's options line uses it, and so can a
-//                                      site's own page of a person's settings.
+//   control(def, settings, changed?, failed?)   a setting's control, as a <label>: a box for a boolean or a menu
+//                                      for an enum, with its words from the declaration. A change calls
+//                                      changed(value) at once and is then kept. If it cannot be kept, the control
+//                                      goes back to the old value, changed(old) is called, and failed(error) hears
+//                                      why. The player's options line uses it, and so can a site's own settings page.
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';
@@ -40,7 +41,7 @@ export function check(type, value) {
   throw new Error('settings: no such type: ' + JSON.stringify(type));
 }
 
-export function control(def, settings, changed = () => {}) {
+export function control(def, settings, changed = () => {}, failed = () => {}) {
   const label = document.createElement('label'), choice = Array.isArray(def.type), value = settings.get(def);
   if (def.title) label.title = def.title;
   const box = choice
@@ -48,7 +49,19 @@ export function control(def, settings, changed = () => {}) {
     : Object.assign(document.createElement('input'), { type: 'checkbox' });
   box.id = def.name;
   if (choice) { box.value = value; label.append(def.words + ' ', box); } else { box.checked = value; label.append(box, ' ' + def.words); }
-  box.addEventListener('change', async () => { const v = choice ? box.value : box.checked; await settings.set(def, v); changed(v); });
+  // The new value takes effect at once. If it cannot be kept, the box and the setting go back to what they were,
+  // and `failed` hears why.
+  box.addEventListener('change', async () => {
+    const before = settings.get(def), v = choice ? box.value : box.checked;
+    changed(v);
+    try { await settings.set(def, v); }
+    catch (err) {
+      if (choice) box.value = before; else box.checked = before;
+      changed(before);
+      settings.set(def, before).catch(() => {});
+      failed(err);
+    }
+  });
   return label;
 }
 

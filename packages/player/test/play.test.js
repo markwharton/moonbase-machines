@@ -224,3 +224,21 @@ test('clean words in the band\'s moved part move with its dots; the others stay'
   shiftWords(words, inset);
   assert.deepEqual(words.map(w => w.x), [337, 0, 392]);
 });
+
+test('a setting\'s control: a change takes effect at once, and one that cannot be kept goes back and says why', async () => {
+  const { control } = await import('@moonbase-machines/player/settings.js');
+  // (just enough of a page for one checkbox)
+  const made = [];
+  globalThis.document = { createElement: tag => { const el = { tag, listeners: {}, append() {}, addEventListener(t, f) { this.listeners[t] = f; } }; made.push(el); return el; } };
+  const def = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
+  let kept = true, told = [], why = null;
+  const settings = { get: () => kept, set: (d, v) => v === false ? Promise.reject(new Error('offline')) : (kept = v, Promise.resolve()) };
+  control(def, settings, v => told.push(v), err => { why = err.message; });
+  const box = made.find(el => el.tag === 'input');
+  box.checked = false;
+  await box.listeners.change();
+  assert.deepEqual(told, [false, true], 'the game hears the change at once, then the old value back');
+  assert.equal(box.checked, true, 'the box back as it was');
+  assert.equal(why, 'offline');
+  delete globalThis.document;
+});
