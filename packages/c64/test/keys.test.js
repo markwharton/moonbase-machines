@@ -1,5 +1,5 @@
 // The page's keys (browser.js `keyboard`, keys.js): each key one key of the 64's and nothing else, the arrows its
-// cursor keys, never the joystick; Control the Commodore key, never fire; Shift with Home CLR, with DEL INST; ` the
+// cursor keys, never the joystick; Control the Commodore key, never fire, and Option fire only for a game that names it; Shift with Home CLR, with DEL INST; ` the
 // 64's ←, \ its £. A key pressed on a page stood in for here, and what the 64's matrix and joystick get from it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,16 +9,17 @@ globalThis.window ??= { addEventListener() {} };
 globalThis.document ??= { addEventListener() {}, hidden: false };
 
 // a 64 that keeps what it is told: the matrix's keys down, and the joystick
-function page() {
+function page(options = {}) {
   const m = { keys: new Uint8Array(8), joystick: 0, vic: { r: Object.assign(new Uint8Array(0x40), { 0x18: 0x15 }) },
     key(column, row, down) { if (down) this.keys[column] |= 1 << row; else this.keys[column] &= ~(1 << row); } };
   const on = { keydown: [], keyup: [] };
-  keyboard(m, { listen: (type, f) => on[type].push(f) });
+  keyboard(m, { listen: (type, f) => on[type].push(f), ...options });
   const event = (key, code, mods = {}) => ({ key, code, metaKey: false, repeat: false, ctrlKey: false, shiftKey: false, altKey: false, preventDefault() {}, ...mods });
   const press = (key, code = key, mods) => { const e = event(key, code, mods); on.keydown.forEach(f => f(e)); };
+  const lift = (key, code = key, mods) => { const e = event(key, code, mods); on.keyup.forEach(f => f(e)); };
   // the 64's keys down, as [column, row], in order
   const down = () => [...m.keys].flatMap((bits, column) => Array.from({ length: 8 }, (_, row) => bits & 1 << row ? [[column, row]] : []).flat());
-  return { m, press, down };
+  return { m, press, lift, down };
 }
 const SHIFT = [1, 7];
 
@@ -54,4 +55,17 @@ test('` is the 64\'s ←, \\ its £, and £ itself and _ still as they were, non
     press(key, code);
     assert.deepEqual(down(), [at], key);
   }
+});
+
+test('a game that names Option its fire (CRAYON): Option held is the joystick\'s fire, the arrows still the cursor keys with it, and let go is fire let go', () => {
+  const { m, press, lift, down } = page({ fire: 'Alt' });
+  press('Alt', 'AltLeft');
+  assert.equal(m.joystick, 16, 'fire');
+  assert.deepEqual(down(), [], 'Option nothing else');
+  press('ArrowDown', 'ArrowDown', { altKey: true });
+  assert.deepEqual(down(), [[0, 7]], 'the cursor down, Option held');
+  assert.equal(m.joystick, 16, 'fire still held');
+  lift('Alt', 'AltLeft');
+  assert.equal(m.joystick, 0, 'fire let go');
+  assert.throws(() => page({ fire: 'Control' }), /cannot be the fire/, 'a key macOS takes with the arrows refused');
 });

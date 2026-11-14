@@ -53,6 +53,15 @@ test('a game\'s data carries its demonstrations, each step checked; a game of an
   assert.throws(() => gameData('game', { title: 'GAME', kind: 'dos33', disks: [], demonstrations: [{ name: 'Frames', steps }] }), /C64 game only/);
 });
 
+test('a game\'s data carries its fire key, Option alone, for a C64 game; another key or kind refused', () => {
+  const disk = make({ name: 'DISK', id: 'MB', files: [] });
+  const c64 = more => ({ title: 'GAME', kind: 'c64', disks: [disk], start: 'GAME', ...more });
+  assert.equal(gameData('game', c64({ fire: 'Alt' })).data.fire, 'Alt');
+  assert.equal(gameData('game', c64({})).data.fire, undefined);
+  assert.throws(() => gameData('game', c64({ fire: 'Control' })), /cannot be the fire/);
+  assert.throws(() => gameData('game', { title: 'GAME', kind: 'dos33', disks: [], fire: 'Alt' }), /C64 game's only/);
+});
+
 test('the saves: a game\'s volume given what is kept, and a change to its files kept', async () => {
   const disk = await openDisk('title/one', { backend: memory() });
   disk.write('KEPT', [1, 2], { type: 'BIN', aux: 0x2000 });

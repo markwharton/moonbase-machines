@@ -1,11 +1,13 @@
 // A Commodore 64 (machine.js) in a browser page: each key one key of the C64's matrix and nothing else, the arrows its
 // cursor keys, Escape RUN/STOP, Control the Commodore key, Tab CTRL; the joystick a gamepad plugged in (an 8BitDo, or
-// any in the browser's standard mapping), never a key; the frame painted on a canvas doubled; and the machine run 50
+// any in the browser's standard mapping), never a key, but for a game that names a key its fire (`fire`); the frame painted on a canvas doubled; and the machine run 50
 // frames a second against the clock, a hitch caught up and a pause dropped (@moonbase-machines/mos6502/pace.js).
 //
-//   const keys = keyboard(m, { ignore, onKey, log, listen })   ignore(e): a key the page keeps (a pane's); listen(type,
-//                                                      f), where its keys come from (the window's, unless a player gives
-//                                                      its own)
+//   const keys = keyboard(m, { ignore, onKey, log, listen, fire })   ignore(e): a key the page keeps (a pane's);
+//                                                      listen(type, f), where its keys come from (the window's, unless a
+//                                                      player gives its own); fire, a key (KeyboardEvent.key, 'Alt' for
+//                                                      a Mac's Option) held as the joystick's fire, for a game played with
+//                                                      the arrows and fire (CRAYON): the key is then fire and nothing else
 //   keys.press(column, row, frames)                    a key held for so many frames (RUN/STOP)
 //   const draw = painter(canvas)                       draw(m.vic.frame)
 //   pace(m, after, each)                               the machine run at 50 frames a second: each(frames) after
@@ -16,7 +18,12 @@ import { PALETTE, WIDTH, HEIGHT } from './vic.js';
 
 const PAD_DEAD = 0.4;   // a stick pushed less far than this is at rest (the dead zone)
 
-export function keyboard(m, { ignore = () => false, onKey = () => {}, log = false, listen = (type, f) => window.addEventListener(type, f) } = {}) {
+export const FIRE_KEYS = ['Alt'];   // (the keys a game may name its fire: Option, which macOS leaves to the page with the arrows)
+const FIRE = 16;   // (the joystick's fire, its bit)
+
+export function keyboard(m, { ignore = () => false, onKey = () => {}, log = false, listen = (type, f) => window.addEventListener(type, f), fire = null } = {}) {
+  if (fire !== null && !FIRE_KEYS.includes(fire)) throw new Error(`keyboard: ${fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
+  let keyFire = false;
   // (a letter by the key it is, not the character the browser makes of it: in the C64's first
   // character set, capitals and graphics, a letter is a letter, Shift or Caps Lock or not, and
   // Option with it is its graphic, the C64's shifted letter; in the second, small letters and
@@ -35,6 +42,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
   listen('keydown', e => {
     if (ignore(e)) return;
     onKey(e);
+    if (fire && e.key === fire) { keyFire = true; m.joystick |= FIRE; e.preventDefault(); return; }
     if (e.metaKey || e.repeat) return;
     if (MODIFIERS[e.key]) { m.key(...MODIFIERS[e.key], true); e.preventDefault(); }
     const letter = /^Key([A-Z])$/.exec(e.code)?.[1]?.toLowerCase(), cursor = CURSOR[e.key];
@@ -52,6 +60,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
     e.preventDefault();
   });
   listen('keyup', e => {
+    if (fire && e.key === fire) { keyFire = false; if (!(padBits & FIRE)) m.joystick &= ~FIRE; return; }
     if (MODIFIERS[e.key]) m.key(...MODIFIERS[e.key], false);
     const key = down.get(e.code);
     if (key) { release(key, true); if (withCbm.delete(e.code)) release(MODIFIERS.Control, false); down.delete(e.code); } else m.key(1, 7, false);
@@ -59,7 +68,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
   // the page left (another window, another tab, Cmd-Tab): the browser sends no keyup for what was
   // held, so everything is let go, the keys, the joystick and fire, or a key (CTRL by Tab) would stay
   // down and every key after it be read wrongly
-  const letGo = () => { m.keys.fill(0); m.joystick = 0; down.clear(); held.length = 0; pressed.clear(); withCbm.clear(); padBits = 0; padStop = false; };
+  const letGo = () => { keyFire = false; m.keys.fill(0); m.joystick = 0; down.clear(); held.length = 0; pressed.clear(); withCbm.clear(); padBits = 0; padStop = false; };
   // a gamepad, read each frame in the browser's standard mapping: the D-pad or the left stick
   // (pushed past PAD_DEAD) the joystick in port 2, A or B its fire, Start RUN/STOP; let go with the
   // pad
@@ -77,7 +86,7 @@ export function keyboard(m, { ignore = () => false, onKey = () => {}, log = fals
       if (b(0) || b(1)) bits |= 16;
       if (b(9)) stop = true;
     }
-    m.joystick = (m.joystick & ~padBits) | bits; padBits = bits;
+    m.joystick = (m.joystick & ~padBits) | bits | (keyFire ? FIRE : 0); padBits = bits;
     if (stop !== padStop) { m.key(7, 7, stop); padStop = stop; }
   };
   window.addEventListener('blur', letGo);

@@ -4,7 +4,7 @@
 // whole as well, for a machine with Apple's own ROMs, which boots them (`images`, @moonbase-machines/apple2e/disk2.js,
 // blocks.js), the data naming them.
 //
-//   const { data, images } = gameData(slug, { title, kind, disks, system, call, loads, wait, start, saves, demonstrations })
+//   const { data, images } = gameData(slug, { title, kind, disks, system, call, loads, wait, start, saves, demonstrations, fire })
 //     kind      'prodos', 'dos33' or 'c64'
 //     disks     each disk image's bytes, in order (a 140K .dsk, a .2mg; a C64's .d64)
 //     saves     where the game saves, { volume, dos } (@moonbase-machines/apple2e/saves.js), if it does
@@ -13,12 +13,15 @@
 //               game by the player's button of that name (play.js): [{ name, steps: [{ key: 'return' }, { key: 'f4' },
 //               { type: '1 PISTONS' }, ...] }] (keys.js `typing` says what a step is); a C64 game's, whose engine types
 //               them (engines/original.js); refused for another kind
+//     fire      a C64 game played with the arrows and fire on a keyboard, the key held as its fire
+//               (@moonbase-machines/c64/browser.js FIRE_KEYS: 'Alt', a Mac's Option); refused for another kind
 //   data      the game's data, for <slug>.json
 //   images    an Apple game's disks, [{ name: <slug>-<n>.dsk or .2mg, bytes }]
 import { prodos } from '@moonbase-machines/apple2e/prodos-disk.js';
 import { dos33 } from '@moonbase-machines/apple2e/dos33-disk.js';
 import { read as d64 } from '@moonbase-machines/c64/d64.js';
 import { typing } from './keys.js';
+import { FIRE_KEYS } from '@moonbase-machines/c64/browser.js';
 
 const b64 = bytes => Buffer.from(bytes).toString('base64');
 
@@ -49,6 +52,11 @@ export function gameData(slug, game) {
       typing(d.steps, game.kind);   // (checked here, once, so that the player never meets a step it cannot type)
       return { name: d.name, steps: d.steps };
     });
+  }
+  if (game.fire !== undefined) {
+    if (game.kind !== 'c64') throw new Error(`${slug}: a fire key is a C64 game's only`);
+    if (!FIRE_KEYS.includes(game.fire)) throw new Error(`${slug}: ${game.fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
+    data.fire = game.fire;
   }
   return { data, images };
 }

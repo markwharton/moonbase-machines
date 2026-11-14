@@ -126,7 +126,8 @@ async function c64(g, { canvas, layer, speaker }) {
   const theirs = () => { demo = null; };
   // the keys as the 64's matrix (@moonbase-machines/c64/browser.js), given them by the player (play.js)
   const listeners = { keydown: [], keyup: [] };
-  const keys = keyboard(m, { log: true, listen: (type, f) => listeners[type].push(f) });
+  // (a game played with the arrows and fire names its fire key in its data: CRAYON's Option)
+  const keys = keyboard(m, { log: true, listen: (type, f) => listeners[type].push(f), fire: g.game.fire ?? null });
   // once BASIC is ready, the start typed in; the KERNAL's buffer takes ten characters at a time.
   // The C64 runs 50 frames a second against the clock (@moonbase-machines/mos6502/pace.js: a hitch caught up, a pause
   // dropped), the SID's frame rendered with each, and the screen painted each animation frame
