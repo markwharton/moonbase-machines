@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.16.0] - 2026-11-14
+
+### Added
+
+- a game may name Option its joystick's fire, held with the arrows, in its data (fire: 'Alt') (6b597e5)
+- with a game's fire key held, the arrows are its joystick, so fire held as it moves reaches the game (313e39b)
+
+### Fixed
+
+- a game that stopped, or ROMs not there, marks the status line an error, as a failure does (7619a34)
+
+### Maintenance
+
+- npm run publish-packages publishes each package npm lacks at its version, in order, and stops at the first that fails (3e7cce4)
+
 ## [v0.15.0] - 2026-11-14
 
 ### Added
@@ -173,3 +188,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.13.0]: https://github.com/markwharton/moonbase/compare/v0.12.0...v0.13.0
 [v0.14.0]: https://github.com/markwharton/moonbase/compare/v0.13.0...v0.14.0
 [v0.15.0]: https://github.com/markwharton/moonbase/compare/v0.14.0...v0.15.0
+[v0.16.0]: https://github.com/markwharton/moonbase/compare/v0.15.0...v0.16.0
