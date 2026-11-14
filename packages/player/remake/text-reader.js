@@ -1,12 +1,11 @@
-// A hi-res screen read back to its characters, for a title that draws its text from a font of its own on the 40 by 24
-// grid (Pieces of Eight, its font at $9400, 8 bytes a character, by ASCII code): each 7 by 8 cell of the page, its 8
-// bytes (their 7 dots, the colour bit set aside), against the font, as drawn and drawn inverse. A cell that is no
-// character of the font is picture. Nothing else is read.
+// Reads the characters on a hi-res screen, for a title that draws text from its own font on the 40 by 24 grid. Each
+// 7 by 8 cell is compared with the font, normal and inverse, ignoring the colour bit. A cell that matches no character
+// is picture.
 //
 //   const read = reader(mem, { font })
-//     read.ready()            whether the game has loaded its font (more than 40 characters there)
-//     read.cell(page, c, r)   the cell at column c (0 to 39), row r (0 to 23) of the page at `page`: [character,
-//                             inverse], or null (picture)
+//     read.ready()            whether the font is loaded (more than 40 distinct characters)
+//     read.cell(page, c, r)   the cell at column c (0 to 39) and row r (0 to 23) of the page at `page`:
+//                             [character, inverse], or null for picture
 import { rowStart } from '@moonbase-machines/apple2e/screen.js';
 
 export function reader(mem, { font }) {

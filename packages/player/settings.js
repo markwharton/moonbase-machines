@@ -26,9 +26,10 @@
 //   settings.set(def, value)   kept, for the next visit; a promise, kept when stored (a value not of the type throws)
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
 //
-//   control(def, settings, changed?)   its control, a <label>: a box for a boolean, a menu for an enum, its words from
-//                                      the declaration; a change kept, then changed(value). For the player's options
-//                                      line and for a site's own page of a person's settings alike
+//   control(def, settings, changed?)   a setting's control, as a <label>. It holds a box for a boolean or a menu for
+//                                      an enum, with its words from the declaration. A change is kept first, then
+//                                      changed(value) is called. The player's options line uses it, and so can a
+//                                      site's own page of a person's settings.
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';

@@ -1,6 +1,7 @@
-// The page's keys (browser.js `keyboard`, keys.js): each key one key of the 64's and nothing else, the arrows its
-// cursor keys, never the joystick; Control the Commodore key, never fire, and Option fire only for a game that names it; Shift with Home CLR, with DEL INST; ` the
-// 64's ←, \ its £. A key pressed on a page stood in for here, and what the 64's matrix and joystick get from it.
+// The page's keys (browser.js `keyboard`, keys.js). Each key is one key of the 64's and nothing else. The arrows are its
+// cursor keys and never the joystick. Control is the Commodore key and never fire. Option is fire only for a game that
+// names it as its fire key. Shift with Home is CLR, and Shift with DEL is INST. ` is the 64's ←, and \ is its £. Each
+// test stands in for a key pressed on a page, and checks what the 64's matrix and joystick get from it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { keyboard } from '@moonbase-machines/c64/browser.js';

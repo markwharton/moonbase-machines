@@ -1,13 +1,13 @@
-// The settings a person may choose, declared once (settings.js says what a declaration is): the player's own, the
-// speaker, a Commodore 64's printer and a title's version with its bugs fixed (play.js); the Remake's, the old style
-// text and the mini view (engines/scenes.js); the Original's, an Apple's pictures as vectors (engines/original.js).
-// Each is read where it acts, and a site that lets a person set them away from the game (an account's page) draws
-// them from here (settings.js `control`), so the two are always the same setting.
+// The settings a person may choose, each declared once here. settings.js says what a declaration is.
+// - The player's own (play.js): the speaker, a Commodore 64's printer, and a title's version with its bugs fixed.
+// - The Remake's (engines/scenes.js): Old style text and the mini view.
+// - The Original's (engines/original.js): an Apple game's pictures drawn as vectors.
+// Each setting is read where it acts. A site can also let a person set them away from the game, on an account's page.
+// That page draws its controls from these declarations (settings.js `control`), so both places use the same setting.
 export const SOUND = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
 export const PRINTER = { name: 'printer', type: 'boolean', default: true, owner: 'person', words: 'Printer' };
 export const FIXED = { name: 'fixed', type: 'boolean', default: false, owner: 'person', words: 'Bugs fixed', title: 'The game with its bugs fixed: it starts again' };
-// (the old style text: the Apple's own letters, where a remake draws its words clean: the vector titles' and a card
-// title's that says how its text is drawn, Pieces of Eight's and Detect-A-Pet's; elsewhere the screen is the machine's)
+// Old style text applies only where a remake draws clean text: the vector titles, and card titles with `text`.
 export const OLD_STYLE = { name: 'old-style', type: 'boolean', default: false, owner: 'person', words: 'Old style text', title: "The Apple's own letters in place of clean text, in the remakes that draw it clean" };
 export const MINI = { name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
 export const VECTORS = { name: 'vectors', type: 'boolean', default: false, owner: 'person', words: 'Draw the pictures as vectors' };

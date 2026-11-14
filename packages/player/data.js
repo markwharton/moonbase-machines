@@ -13,8 +13,9 @@
 //               game by the player's button of that name (play.js): [{ name, steps: [{ key: 'return' }, { key: 'f4' },
 //               { type: '1 PISTONS' }, ...] }] (keys.js `typing` says what a step is); a C64 game's, whose engine types
 //               them (engines/original.js); refused for another kind
-//     fire      a C64 game played with the arrows and fire on a keyboard, the key held as its fire
-//               (@moonbase-machines/c64/browser.js FIRE_KEYS: 'Alt', a Mac's Option); refused for another kind
+//     fire      the key a C64 game uses as the joystick's fire button, for a game played on the keyboard with the
+//               arrows and fire. It must be one of FIRE_KEYS (@moonbase-machines/c64/browser.js), which allows only
+//               'Alt', the Mac's Option key. Refused for any other kind of game.
 //   data      the game's data, for <slug>.json
 //   images    an Apple game's disks, [{ name: <slug>-<n>.dsk or .2mg, bytes }]
 import { prodos } from '@moonbase-machines/apple2e/prodos-disk.js';

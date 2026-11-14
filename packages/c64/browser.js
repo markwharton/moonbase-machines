@@ -1,15 +1,18 @@
-// A Commodore 64 (machine.js) in a browser page: each key one key of the C64's matrix and nothing else, the arrows its
-// cursor keys, Escape RUN/STOP, Control the Commodore key, Tab CTRL; the joystick a gamepad plugged in (an 8BitDo, or
-// any in the browser's standard mapping), never a key, but for a game that names a key its fire (`fire`); the frame painted on a canvas doubled; and the machine run 50
-// frames a second against the clock, a hitch caught up and a pause dropped (@moonbase-machines/mos6502/pace.js).
+// A Commodore 64 (machine.js) in a browser page. Each key on the page is one key of the C64's matrix and nothing else.
+// The arrows are its cursor keys, Escape is RUN/STOP, Control is the Commodore key and Tab is CTRL. The joystick is a
+// gamepad plugged in: an 8BitDo, or any in the browser's standard mapping. A key is never the joystick, except a fire
+// key that a game names (`fire`, below). The frame is painted on a canvas at twice its size. The machine runs 50
+// frames a second against the clock; a hitch is caught up and a pause is dropped (@moonbase-machines/mos6502/pace.js).
 //
-//   const keys = keyboard(m, { ignore, onKey, log, listen, fire })   ignore(e): a key the page keeps (a pane's);
-//                                                      listen(type, f), where its keys come from (the window's, unless a
-//                                                      player gives its own); fire, a key (KeyboardEvent.key, 'Alt' for
-//                                                      a Mac's Option) held as the joystick's fire, for a game played with
-//                                                      the arrows and fire (CRAYON): the key is then fire and nothing else,
-//                                                      and while it is held the arrows are the joystick, not the cursor
-//                                                      keys, so a game reads fire held as it moves (CRAYON's kaleidoscope)
+//   const keys = keyboard(m, { ignore, onKey, log, listen, fire })
+//                                                      ignore(e): true for a key the page keeps for itself (a pane's).
+//                                                      listen(type, f): where the keys come from. It is the window's,
+//                                                      unless a player gives its own.
+//                                                      fire: a key that a game uses as the joystick's fire button, by
+//                                                      its KeyboardEvent.key. 'Alt', the Mac's Option key, is the only
+//                                                      one allowed (FIRE_KEYS). While it is held, it is fire and nothing
+//                                                      else, and the arrow keys move the joystick instead of the
+//                                                      cursor, so the game sees fire held while moving.
 //   keys.press(column, row, frames)                    a key held for so many frames (RUN/STOP)
 //   const draw = painter(canvas)                       draw(m.vic.frame)
 //   pace(m, after, each)                               the machine run at 50 frames a second: each(frames) after
@@ -20,13 +23,14 @@ import { PALETTE, WIDTH, HEIGHT } from './vic.js';
 
 const PAD_DEAD = 0.4;   // a stick pushed less far than this is at rest (the dead zone)
 
-export const FIRE_KEYS = ['Alt'];   // (the keys a game may name its fire: Option, which macOS leaves to the page with the arrows)
-const FIRE = 16;   // (the joystick's fire, its bit)
-const STICK = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8 };   // (the joystick's directions, by arrow)
+// The keys a game may use as fire. Only Option is allowed, because macOS passes Option with an arrow key on to the page.
+export const FIRE_KEYS = ['Alt'];
+const FIRE = 16;   // the joystick's fire button, as a bit
+const STICK = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8 };   // the joystick's directions, as bits, by arrow key
 
 export function keyboard(m, { ignore = () => false, onKey = () => {}, log = false, listen = (type, f) => window.addEventListener(type, f), fire = null } = {}) {
   if (fire !== null && !FIRE_KEYS.includes(fire)) throw new Error(`keyboard: ${fire} cannot be the fire; one of ${FIRE_KEYS.join(', ')}`);
-  // (the joystick as the keys give it, the fire key and the arrows held with it, beside a gamepad's)
+  // The joystick bits from the keyboard: the fire key, and the arrows held with it. They are added to the gamepad's.
   let keyStick = 0;
   const stick = () => { m.joystick = padBits | keyStick; };
   // (a letter by the key it is, not the character the browser makes of it: in the C64's first

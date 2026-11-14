@@ -1,10 +1,12 @@
-// Every package of the release published to npm, one at a time in the workspaces' order (package.json), each that the
-// registry does not yet have at its version, and the first that fails stops the rest. So a run can be repeated: what
-// is published is passed over, and a release is never left with one package missing and the others needing it.
-// (npm publish --workspaces goes on past a package that fails, and refuses the whole run again once one is published.)
+// Publishes every package of the release to npm, one at a time, in the order of the workspaces in package.json. A
+// package that the registry already has at its version is skipped. The first package that fails to publish stops the
+// rest. So a run can be repeated after a failure: it skips what is published and goes on from the one that failed. A
+// release is never left with one package missing while the others need it.
+// This replaces `npm publish --workspaces`, which goes on past a package that fails, and refuses the whole run when it
+// is repeated, because one package is already published.
 //
-//   npm run publish-packages                      after pk ship: npm signed in (npm login)
-//   npm run publish-packages -- --otp=123456      with npm's one-time code, where the account asks for one
+//   npm run publish-packages                      after pk ship, with npm signed in (npm login)
+//   npm run publish-packages -- --otp=123456      with npm's one-time code, if the account asks for one
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -13,13 +15,13 @@ const root = new URL('../', import.meta.url).pathname;
 const pass = process.argv.slice(2);
 const npm = (args, opts = {}) => execFileSync('npm', args, { cwd: root, encoding: 'utf8', ...opts });
 
-// (who npm is signed in as: a publish signed out is refused as a 404, which says nothing of why)
+// Check who npm is signed in as first. A publish while signed out is refused with a 404, which does not say why.
 try { console.log('npm: signed in as ' + npm(['whoami'], { stdio: ['ignore', 'pipe', 'ignore'] }).trim()); }
 catch { console.error('npm is not signed in: npm login, then run this again'); process.exit(1); }
 
 for (const folder of JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces) {
   const { name, version } = JSON.parse(readFileSync(join(root, folder, 'package.json'), 'utf8'));
-  // (the registry asked afresh, never npm's cache, which can say a version is not there that is)
+  // Ask the registry itself (--prefer-online). npm's cache can say a version is missing when it has been published.
   let there = false;
   try { there = npm(['view', `${name}@${version}`, 'version', '--prefer-online'], { stdio: ['ignore', 'pipe', 'ignore'] }).trim() === version; } catch {}
   if (there) { console.log(`${name}@${version}: on npm already, passed over`); continue; }

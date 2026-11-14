@@ -9,18 +9,20 @@
 // /packages/, where the page's import map finds them. A folder with an index.html of its own is served as it is.
 //
 //   moonbase-play [folder] [port] [host]     the folder (play/ unless given)
-//   moonbase-play --help                     this, and nothing started; any other flag refused
+//   moonbase-play --help                     prints this and starts nothing. Any other flag is refused.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// (--help or -h: the usage, from the head of this file; another flag, refused, as no flag is the folder)
+// --help or -h prints the usage, a short form of the head of this file. Any other argument that starts with '-' is
+// refused, so that a mistyped flag is never taken as the folder.
 const USAGE = `moonbase-play [folder] [port] [host]
-  A title played on this machine: its page at http://<host>:<port>/ (127.0.0.1:8002 unless given), the folder
-  (play/ unless given) holding title/ where it is remade and its games' data, <name>.json each.
-  /?way=original for the Original beside a Remake; /?game=<name> where it has more than one game.`;
+  Serves a title to play on this machine, at http://<host>:<port>/ (127.0.0.1:8002 unless given).
+  The folder is play/ unless given. It holds title/ if the title is remade, and each game's data as <name>.json.
+  /?way=original plays the Original where there is also a Remake.
+  /?game=<name> chooses the game where the title has more than one.`;
 const given = process.argv.slice(2);
 if (given.some(a => a === '--help' || a === '-h')) { console.log(USAGE); process.exit(0); }
 const flag = given.find(a => a.startsWith('-'));

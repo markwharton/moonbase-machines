@@ -83,7 +83,7 @@ function after() {
   ctx.putImageData(image, 0, 0);
   layer.style.visibility = vectors.value && !text ? 'visible' : 'hidden';
   status.textContent = m.halted ? 'The game has stopped: ' + m.halted + '.' : (m.idle > 2000 ? 'Waiting for a key.' : 'Running.');
-  status.classList.toggle('error', !!m.halted);   // (a stop is what went wrong: a page that shows only those shows it)
+  status.classList.toggle('error', !!m.halted);   // a stop is an error, so a page that shows only errors shows it
 }
 canvas.addEventListener('pointerdown', () => canvas.focus());
 // (the keys, the Apple's codes, given by the player: play.js, keys.js)
@@ -126,7 +126,7 @@ async function c64(g, { canvas, layer, speaker }) {
   const theirs = () => { demo = null; };
   // the keys as the 64's matrix (@moonbase-machines/c64/browser.js), given them by the player (play.js)
   const listeners = { keydown: [], keyup: [] };
-  // (a game played with the arrows and fire names its fire key in its data: CRAYON's Option)
+  // A game played with the arrows and fire names its fire key in its data (data.js `fire`), for example Option.
   const keys = keyboard(m, { log: true, listen: (type, f) => listeners[type].push(f), fire: g.game.fire ?? null });
   // once BASIC is ready, the start typed in; the KERNAL's buffer takes ten characters at a time.
   // The C64 runs 50 frames a second against the clock (@moonbase-machines/mos6502/pace.js: a hitch caught up, a pause

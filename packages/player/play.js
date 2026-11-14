@@ -19,8 +19,6 @@
 //     settings     the person's settings, the page's typed store (settings.js): each declared setting's value, kept
 //     preview      the preview's build: what only it has may be used
 //     words        the page's words the player shows: { printer: { line, print, tear } }
-//   The status line, #status, says what the game is doing; what went wrong, a stop or a failure, has the class `error`,
-//   so a page that shows only those (moonbase.au's) can
 //     screen       [width, height], the screen's shape in its own dots where the page draws its own over it
 //   and what a page that follows the game asks:
 //     watch        called with { engine, press, quick } once the game is ready: its engine (where it has one), a key
@@ -37,6 +35,10 @@
 //     downloadDisk a Commodore 64 game's disk offered to download, with what is saved on it
 //   and, from the game's data (data.js `demonstrations`), where the engine can type them: a button for each
 //   demonstration, its name, typing its steps into the game as the keys would be; the person's first key ends it.
+//
+// The status line, #status, says what the game is doing. When something goes wrong, such as the game stopping, the
+// makers' ROMs missing or a file not kept, the status line has the class `error`. A page can use the class to show the
+// status line only for errors, as moonbase.au does.
 //
 // An engine (engines/original.js, engines/scenes.js, or the title's own, its title.js `engine` a module in its folder)
 // exports `play(game)`: given `game`, the player's own for it (below), it declares the settings it acts on
@@ -59,12 +61,12 @@ import { paperBox, phoneKeys, KEYS_MARKUP } from './parts.js';
 // each machine's screen, in its own dots: an Apple's hi-res page, a Commodore 64's frame, border and all
 const SCREENS = { prodos: [280, 192], dos33: [280, 192], c64: [384, 272] };
 const ENGINES = { original: () => import('./engines/original.js'), card: () => import('./engines/scenes.js'), vector: () => import('./engines/scenes.js') };
-// the settings the player itself acts on (declared.js): the speaker; a Commodore 64's printer; a title's version with
-// its bugs fixed
+// The settings the player acts on itself (declared.js): the speaker, a Commodore 64's printer, and a title's version
+// with its bugs fixed. `control` (settings.js) makes each one's box or menu on the options line.
 import { SOUND, PRINTER, FIXED } from './declared.js';
 import { control } from './settings.js';
-// the keys a browser moves the page by: on the play page they are the game's, never the page's, where nothing that
-// takes keys itself (a box to type in, a menu, a button) has them
+// The keys a browser scrolls the page with. On the play page they go to the game, and the page does not scroll. The
+// exception is an element that takes keys itself, such as a box to type in, a menu, a button or a link (ownKeys).
 const SCROLL = new Set([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
 const ownKeys = t => t instanceof Element && !!t.closest('input, textarea, select, button, a[href], [contenteditable]:not([contenteditable="false"]), [role="menu"], [role="menuitem"]');
 

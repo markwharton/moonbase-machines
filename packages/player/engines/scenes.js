@@ -6,7 +6,7 @@
 // original took time over takes time here too.
 import { makeEngine } from '../remake/load.js';
 
-// the settings this engine acts on (play.js `setting`): the old style text, a vector title's; the mini view
+// The settings this engine acts on (play.js `setting`): Old style text and the mini view.
 import { OLD_STYLE, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
@@ -37,9 +37,9 @@ export async function play(g) {
   const engine = makeEngine(title, scripts);
   if (title.files) saves.keep(title.files);
   const queue = [];
-  // The view, and every event it has drawn, so that it can be drawn again from the start when the old style text is
-  // turned on or off: a setting only where the view draws text of its own, a vector title's (View) or a card title's
-  // that says how its text is drawn (its title.js `text`, CardView), the others drawing the machine's own screen
+  // The view, and every event it has drawn. When Old style text is turned on or off, the events are drawn again from
+  // the start. The setting is offered only where the view draws text of its own: a vector title (View), or a card
+  // title whose title.js has `text` (CardView). The other views draw the machine's own screen.
   const history = [];
   const oldStyle = drawn === 'vector' || drawn === 'card' && title.text ? g.setting(OLD_STYLE) : { value: false, on() { return this; } };
   let onView = null;   // (the mini view's, given each view made)

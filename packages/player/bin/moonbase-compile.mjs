@@ -3,18 +3,19 @@
 // <name>.scene in the title's folder, and any that does not compile said with its scene and its line, so that a
 // title's own tests catch it before a page does. Nothing is written.
 //
-//   moonbase-compile <title folder> ...              every scene of each compiled; fails on the first that does not
+//   moonbase-compile <title folder> ...              compiles every scene of each; reports each that fails, then exits 1
 //   moonbase-compile --print <title folder> <name>   one scene's JavaScript, to look at
-//   moonbase-compile --help                           this; any other flag refused
+//   moonbase-compile --help                           prints this. Any other flag is refused.
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { compile } from '../remake/compile.js';
 
 const USAGE = `moonbase-compile <title folder> ...
-  Every scene of each title compiled, as the page compiles them; the first that does not, said with its scene and line.
+  Compiles every scene of each title, as the page does. A scene that does not compile is reported with its line,
+  and the command fails.
 moonbase-compile --print <title folder> <name>
-  One scene's JavaScript, to look at.`;
+  Prints one scene's JavaScript, to look at.`;
 const args = process.argv.slice(2);
 if (args.some(a => a === '--help' || a === '-h')) { console.log(USAGE); process.exit(0); }
 const flag = args.find(a => a.startsWith('-') && a !== '--print');
