@@ -187,3 +187,20 @@ test('the commands: --help says how each is used and starts nothing; a flag they
     const r = run(name, '--nope'); assert.equal(r.code, 1, `${name} --nope`); assert.match(r.out, /no such flag, --nope/);
   }
 });
+
+test('a screen read back to its characters: a cell of the font as drawn, inverse, and a cell of picture', async () => {
+  const { reader } = await import('@moonbase-machines/player/remake/text-reader.js');
+  const { rowStart } = await import('@moonbase-machines/apple2e/screen.js');
+  const mem = new Uint8Array(0x10000), font = 0x9400;
+  // (a font of 95 characters, each its own 8 bytes, the colour bit set aside)
+  for (let a = 32; a < 127; a++) for (let k = 0; k < 8; k++) mem[font + a * 8 + k] = (a * 7 + k * 13) & 0x7f;
+  const put = (c, r, a, inverse) => { for (let k = 0; k < 8; k++) mem[0x4000 + rowStart(r * 8 + k) + c] = (inverse ? mem[font + a * 8 + k] ^ 0x7f : mem[font + a * 8 + k]) | 0x80; };
+  put(0, 0, 65); put(1, 0, 66, true);
+  for (let k = 0; k < 8; k++) mem[0x4000 + rowStart(16 + k) + 2] = [1, 2, 3, 4, 5, 6, 7, 8][k] * 11;
+  const read = reader(mem, { font });
+  assert.ok(read.ready());
+  assert.deepEqual(read.cell(0x4000, 0, 0), ['A', false]);
+  assert.deepEqual(read.cell(0x4000, 1, 0), ['B', true]);
+  assert.equal(read.cell(0x4000, 2, 2), null, 'picture');
+  assert.equal(reader(new Uint8Array(0x10000), { font }).ready(), false, 'no font loaded yet');
+});

@@ -6,6 +6,8 @@
 export const SOUND = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
 export const PRINTER = { name: 'printer', type: 'boolean', default: true, owner: 'person', words: 'Printer' };
 export const FIXED = { name: 'fixed', type: 'boolean', default: false, owner: 'person', words: 'Bugs fixed', title: 'The game with its bugs fixed: it starts again' };
-export const OLD_STYLE = { name: 'old-style', type: 'boolean', default: false, owner: 'person', words: 'Old style text' };
+// (the old style text: the Apple's own letters, where a remake draws its words clean: the vector titles' and a card
+// title's that says how its text is drawn, Pieces of Eight's and Detect-A-Pet's; elsewhere the screen is the machine's)
+export const OLD_STYLE = { name: 'old-style', type: 'boolean', default: false, owner: 'person', words: 'Old style text', title: "The Apple's own letters in place of clean text, in the remakes that draw it clean" };
 export const MINI = { name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
 export const VECTORS = { name: 'vectors', type: 'boolean', default: false, owner: 'person', words: 'Draw the pictures as vectors' };

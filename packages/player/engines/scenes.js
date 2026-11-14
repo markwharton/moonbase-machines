@@ -38,10 +38,10 @@ export async function play(g) {
   if (title.files) saves.keep(title.files);
   const queue = [];
   // The view, and every event it has drawn, so that it can be drawn again from the start when the old style text is
-  // turned on or off: a setting only where the view draws text of its own, a vector title's (View), the others drawing
-  // the machine's own screen
+  // turned on or off: a setting only where the view draws text of its own, a vector title's (View) or a card title's
+  // that says how its text is drawn (its title.js `text`, CardView), the others drawing the machine's own screen
   const history = [];
-  const oldStyle = drawn === 'vector' ? g.setting(OLD_STYLE) : { value: false, on() { return this; } };
+  const oldStyle = drawn === 'vector' || drawn === 'card' && title.text ? g.setting(OLD_STYLE) : { value: false, on() { return this; } };
   let onView = null;   // (the mini view's, given each view made)
   const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.oldStyle = oldStyle.value; onView?.(v); return v; };
   let view = makeView();
