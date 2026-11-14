@@ -80,10 +80,14 @@ export class CardView {
     return out;
   }
   // each kept print still on the screen, every dot of its letters in one ink and the dots round them mostly the other
-  // way; one drawn over or gone is let go
+  // way. A print not on the screen now is kept all the same, as the latest KEPT are: the toolkit draws a screen on the
+  // page not shown, copies pages and wipes rows, and a painting can fall between, so whether a print is there is asked
+  // afresh at each painting, never decided once
   standing(mem, page, px, rows) {
     const { shapes, widths } = this.text, read = a => mem[a];
     const bit = (x, y) => x >= 0 && x < 280 && y >= 0 && y < rows ? (mem[page + rowStart(y) + ((x / 7) | 0)] >> (x % 7)) & 1 : -1;
+    // (whether the letters' dots all stand on the page shown, in one ink)
+    const stands = dots => { const lit = dots.filter(([x, y]) => bit(x, y) === 1).length; return lit ? lit === dots.length : dots.every(([x, y]) => bit(x, y) === 0); };
     // (the colour most of some dots are painted, on the 560 by 384 pixels, two a dot)
     const colour = pts => { const n = new Map(); for (const [x, y] of pts) { const i = (y * 2 * 560 + x * 2) * 4, k = `${px[i]},${px[i + 1]},${px[i + 2]}`; n.set(k, (n.get(k) ?? 0) + 1); } return [...n].sort((a, b) => b[1] - a[1])[0][0].split(',').map(Number); };
     const out = [], kept = [];
@@ -97,12 +101,12 @@ export class CardView {
       }
       if (!ok) continue;
       if (!dots.length) { kept.push(p); continue; }
-      const lit = dots.filter(([x, y]) => bit(x, y) === 1).length, ink = lit ? 1 : 0;
-      if (lit ? lit < dots.length : dots.some(([x, y]) => bit(x, y) !== 0)) continue;   // (drawn over, or gone)
       kept.push(p);
-      const xs = dots.map(d => d[0]), ys = dots.map(d => d[1]), on = new Set(dots.map(([x, y]) => x + ',' + y));
+      if (!stands(dots)) continue;
+      const ink = bit(...dots[0]);
+      const xs = dots.map(d => d[0]), ys = dots.map(d => d[1]), mine = new Set(dots.map(([x, y]) => x + ',' + y));
       const x0 = Math.min(...xs) - 1, x1 = Math.max(...xs) + 1, y0 = Math.min(...ys) - 1, y1 = Math.max(...ys) + 1, round = [];
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!on.has(x + ',' + y) && bit(x, y) >= 0) round.push([x, y]);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!mine.has(x + ',' + y) && bit(x, y) >= 0) round.push([x, y]);
       if (round.filter(([x, y]) => bit(x, y) !== ink).length < 0.6 * round.length) continue;   // (black on black: not a word that shows)
       out.push({ grid: false, x: x0 * 2, y: y0 * 2, w: (x1 - x0 + 1) * 2, h: (y1 - y0 + 1) * 2, ch: p.words, base: (p.y + 13) * 2, ink: `rgb(${colour(dots)})`, paper: colour(round) });
     }
