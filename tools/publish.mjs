@@ -17,13 +17,17 @@ const npm = (args, opts = {}) => execFileSync('npm', args, { cwd: root, encoding
 
 // Check who npm is signed in as first. A publish while signed out is refused with a 404, which does not say why.
 try { console.log('npm: signed in as ' + npm(['whoami'], { stdio: ['ignore', 'pipe', 'ignore'] }).trim()); }
-catch { console.error('npm is not signed in: npm login, then run this again'); process.exit(1); }
+catch { console.error('npm is not signed in, or the registry cannot be reached: npm login, then run this again'); process.exit(1); }
 
 for (const folder of JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces) {
   const { name, version } = JSON.parse(readFileSync(join(root, folder, 'package.json'), 'utf8'));
   // Ask the registry itself (--prefer-online). npm's cache can say a version is missing when it has been published.
+  // Only "not found" (E404) means it is missing; any other failure stops the run, as the answer is not known.
   let there = false;
-  try { there = npm(['view', `${name}@${version}`, 'version', '--prefer-online'], { stdio: ['ignore', 'pipe', 'ignore'] }).trim() === version; } catch {}
+  try { there = npm(['view', `${name}@${version}`, 'version', '--prefer-online'], { stdio: ['ignore', 'pipe', 'pipe'] }).trim() === version; }
+  catch (err) {
+    if (!/E404/.test(String(err.stderr))) { console.error(`${name}@${version}: npm could not say whether it is published:\n${err.stderr}`); process.exit(1); }
+  }
   if (there) { console.log(`${name}@${version}: on npm already, passed over`); continue; }
   console.log(`${name}@${version}: publishing`);
   try { npm(['publish', '-w', folder, ...pass], { stdio: 'inherit' }); }
