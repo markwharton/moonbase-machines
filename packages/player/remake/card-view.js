@@ -57,9 +57,10 @@ export class CardView {
       paintHires(pixels.data, mem.subarray(page, page + 0x2000));
       if (s.mixed) paintText(pixels.data, mem, mem, false, [20, 24]);
     }
-    const clean = this.text && !this.oldStyle ? this.found(mem, s, page, pixels.data) : [];
+    // (the band is looked for before any word's background is painted, which would make text there look like band)
     this.banded = this.insetOn && !!this.inset && band(pixels.data, this.inset);
-    if (this.banded) shift(pixels.data, this.inset);
+    const clean = this.text && !this.oldStyle ? this.found(mem, s, page, pixels.data) : [];
+    if (this.banded) { shift(pixels.data, this.inset); shiftWords(clean, this.inset); }
     ctx.putImageData(pixels, 0, 0);
     this.image.setAttribute('href', this.canvas.toDataURL());
     this.draw(clean);
@@ -134,6 +135,10 @@ function textChar(v) {
 // (fills a box of the 560 by 384 pixels with one colour)
 function fill(px, x, y, w, h, [r, g, b]) {
   for (let j = Math.max(0, y); j < Math.min(384, y + h); j++) for (let i = Math.max(0, x); i < Math.min(560, x + w); i++) { const o = (j * 560 + i) * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; }
+}
+// (the words in the band's moved part, moved with its dots)
+export function shiftWords(words, { top, bottom, move: [from, to], by }) {
+  for (const w of words) if (w.y >= top && w.y <= bottom && w.x >= from && w.x < to) w.x += by;
 }
 // (whether the band is on the screen: its rows above `top` white, the whole width)
 function band(px, { top }) {

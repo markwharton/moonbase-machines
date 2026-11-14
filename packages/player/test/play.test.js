@@ -216,3 +216,11 @@ test('the status line: an error stays, and later ordinary text does not replace 
   assert.equal(el.textContent, 'A file was not kept: full', 'the error stays');
   assert.ok(classes.has('error'));
 });
+
+test('clean words in the band\'s moved part move with its dots; the others stay', async () => {
+  const { shiftWords } = await import('@moonbase-machines/player/remake/card-view.js');
+  const inset = { top: 16, bottom: 63, move: [378, 546], by: -55 };
+  const words = [{ x: 392, y: 32 }, { x: 0, y: 32 }, { x: 392, y: 80 }];
+  shiftWords(words, inset);
+  assert.deepEqual(words.map(w => w.x), [337, 0, 392]);
+});
