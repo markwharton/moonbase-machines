@@ -220,12 +220,57 @@ test('the status line: an error stays, and later ordinary text does not replace 
   assert.ok(classes.has('error'));
 });
 
-test('clean words in the band\'s moved part move with its dots; the others stay', async () => {
-  const { shiftWords } = await import('@moonbase-machines/player/remake/card-view.js');
-  const inset = { top: 16, bottom: 63, move: [378, 546], by: -55 };
-  const words = [{ x: 392, y: 32 }, { x: 0, y: 32 }, { x: 392, y: 80 }];
-  shiftWords(words, inset);
-  assert.deepEqual(words.map(w => w.x), [337, 0, 392]);
+// (a screen with its words, for clean text: 64K of memory, the hi-res page at $2000 and the pixels painted from it)
+async function cleanScreen() {
+  const { paintHires, rowStart } = await import('@moonbase-machines/apple2e/screen.js');
+  const { CleanText } = await import('@moonbase-machines/player/remake/clean-text.js');
+  const mem = new Uint8Array(0x10000), page = 0x2000;
+  const lit = (x, y) => { mem[page + rowStart(y) + ((x / 7) | 0)] |= 1 << x % 7; };
+  const pixels = () => paintHires(new Uint8ClampedArray(560 * 384 * 4), mem.subarray(page, page + 0x2000));
+  const at = (px, x, y) => { const o = (y * 2 * 560 + x * 2) * 4; return [px[o], px[o + 1], px[o + 2]]; };
+  return { mem, page, lit, pixels, at, CleanText, rowStart };
+}
+
+test('clean text paints a grid character\'s own dots in white and black, and leaves a picture cell as it was', async () => {
+  const { mem, page, pixels, at, CleanText, rowStart } = await cleanScreen();
+  // (a font at $9400 of distinct characters; A has lone dots, which a colour monitor shows green or violet)
+  const FONT = 0x9400, A = [0x02, 0x05, 0x02, 0x00, 0x08, 0x14, 0x08, 0x00];
+  for (let a = 32; a < 127; a++) for (let k = 0; k < 8; k++) mem[FONT + a * 8 + k] = (a * 5 + k * 17) % 120 + 3;
+  A.forEach((b, k) => { mem[FONT + 65 * 8 + k] = b; mem[page + rowStart(2 * 8 + k) + 1] = b; });
+  // (a picture cell beside it, which matches no character)
+  for (let k = 0; k < 8; k++) mem[page + rowStart(2 * 8 + k) + 2] = 0x41;
+  const before = pixels(), px = pixels();
+  new CleanText({ mem }, { font: FONT }).paint({ text: false, mixed: false }, page, px);
+  let fringe = 0;
+  for (let k = 0; k < 8; k++) {
+    for (let i = 0; i < 7; i++) {
+      const x = 7 + i, y = 16 + k, want = A[k] >> i & 1 ? [255, 255, 255] : [0, 0, 0];
+      assert.deepEqual(at(px, x, y), want, `the A's dot ${i}, ${k}`);
+      if (at(before, x, y).join() !== want.join()) fringe++;
+      assert.deepEqual(at(px, 14 + i, y), at(before, 14 + i, y), `the picture's dot ${i}, ${k}`);
+    }
+  }
+  assert.ok(fringe > 0, 'the A had colour fringes before');
+});
+
+test('clean text paints a printed word\'s dots in one colour on the colour around it', async () => {
+  const { mem, page, lit, pixels, at, CleanText } = await cleanScreen();
+  // (a shape table at $6000 of 40 shapes, each a dot, a gap and a dot; each 4 dots wide, by the widths at $7000)
+  const SHAPES = 0x6000, WIDTHS = 0x7000, SHAPE = SHAPES + 2 + 80;
+  mem[SHAPES] = 40; mem[0xe7] = 1;
+  for (let n = 1; n <= 40; n++) { mem[SHAPES + 2 * n] = SHAPE - SHAPES; mem[SHAPES + 2 * n + 1] = 0; mem[WIDTHS + n] = 4; }
+  mem.set([0x0d, 0x05, 0x00], SHAPE);
+  // ("AA" printed at 10, 50: its dots at 10, 12, 14 and 16 on row 50, as the toolkit drew them)
+  for (const x of [10, 12, 14, 16]) lit(x, 50);
+  const clean = new CleanText({ mem }, { shapes: SHAPES, widths: WIDTHS });
+  clean.apply({ step: 'print', x: 10, y: 0, a: 50, c: 0, words: 'AA' });
+  const before = pixels(), px = pixels();
+  clean.paint({ text: false, mixed: false }, page, px);
+  for (const x of [10, 12, 14, 16]) {
+    assert.notDeepEqual(at(before, x, 50), [255, 255, 255], `dot ${x} was a colour before`);
+    assert.deepEqual(at(px, x, 50), [255, 255, 255], `dot ${x} is white`);
+  }
+  for (const x of [11, 13, 15]) assert.deepEqual(at(px, x, 50), [0, 0, 0], `the gap at ${x} is the black around the word`);
 });
 
 test('a setting\'s control: a change takes effect at once, and one that cannot be kept goes back and says why', async () => {

@@ -1,29 +1,34 @@
-// Clean text for a card title. If the title's title.js has `text`, the words on the screen are found, their dots are
-// painted over with the background colour, and they are drawn again as text in the faces of faces.js. The picture is
-// not changed. `text` is one of:
+// Clean text for a card title: its words drawn in the game's own letters, each dot in one colour, as a monochrome
+// monitor showed them.
+//
+// The Apple's hi-res screen has no colour of its own. A colour monitor makes colour from the pattern of dots: a lit
+// dot alone shows violet, green, blue or orange by its column and its byte's high bit, and a dark dot between two lit
+// dots takes their colour. Much of a letter is one dot wide, so on a colour monitor its edges show green and violet.
+// That is the colour fringe. A monochrome monitor showed each lit dot lit and each dark dot dark.
+//
+// If the title's title.js has `text`, the words on the screen are found and painted again over the screen's pixels:
+// each lit dot white and each dark dot black. The pictures are not changed. `text` is one of:
 //   { font }              The title draws characters on the 40 by 24 grid from a font of 8 bytes a character,
-//                         indexed by ASCII code, at `font`. Every cell that matches a character is text
-//                         (@moonbase-machines/apple2e/hires-text.js).
+//                         indexed by ASCII code, at `font`. A cell that matches a character of the font is text
+//                         (@moonbase-machines/apple2e/hires-text.js), and its own dots are painted again.
 //   { shapes, widths }    The toolkit's `print` draws words from an Applesoft shape table at `shapes`, moving on by
-//                         a width from the table at `widths`. The printed words are kept (`apply`), and each is drawn
-//                         wherever its dots are on the screen. The cursor stays as dots.
-// The text screen, and the four text rows of the mixed screen, are drawn as text too.
+//                         a width from the table at `widths`. The printed words are kept (`apply`), and each is
+//                         painted again wherever all its dots are on the screen: its box in the colour around it,
+//                         then its dots. The cursor stays as it is.
+// The text screen, and the four text rows of the mixed screen, already have no fringe, so they are left as they are.
 //
 //   const clean = new CleanText(engine, text)
 //   clean.apply(event)              keeps a printed word
-//   clean.find(screen, page, px)    the words on the screen now; their backgrounds are painted onto px
-//   clean.draw(g, words)            draws the words into the SVG group g
-import { textRow, textChar } from '@moonbase-machines/apple2e/screen.js';
+//   clean.paint(screen, page, px)   paints the words on the hi-res page at `page` onto px, the screen's 560 by 384
+//                                   pixels as paintHires painted them
+import { rowStart } from '@moonbase-machines/apple2e/screen.js';
 import { walk, shapeAt } from '@moonbase-machines/apple2e/shapes.js';
 import { reader, dot } from '@moonbase-machines/apple2e/hires-text.js';
-import { WORDS, gridText, fit } from './faces.js';
 
-const NS = 'http://www.w3.org/2000/svg';
 const KEPT = 200;   // how many printed words are kept
 const SAME_PLACE = 2;   // a word printed within this many dots of another, on the same row, replaces it
 const CONTRAST = 0.6;   // the share of the dots around a word that must be the other colour for it to show
-// The shape font's words: the size that matches its capitals, and the baseline below the top it is drawn from.
-const WORDS_SIZE = 27, WORDS_WEIGHT = 500, WORDS_BASELINE = 13;
+const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
 
 export class CleanText {
   constructor(engine, text) {
@@ -43,32 +48,32 @@ export class CleanText {
     if (this.prints.length > KEPT) this.prints.shift();
   }
 
-  // All backgrounds are painted before any word is drawn, so a word's tail is not covered by the line below.
-  find(screen, page, px) {
-    const words = [];
-    const cell = (c, r, ch, inverse) => {
-      if (ch === ' ' && !inverse) return;
-      words.push({ grid: true, x: c * 14, y: r * 16, w: 14, h: 16, ch, ink: inverse ? '#000' : '#fff', paper: inverse ? [255, 255, 255] : [0, 0, 0] });
-    };
-    const textRows = screen.text ? [0, 24] : screen.mixed ? [20, 24] : null;
-    if (textRows) {
-      for (let r = textRows[0]; r < textRows[1]; r++) {
-        for (let c = 0; c < 40; c++) { const { ch, inverse } = textChar(this.mem[textRow(r) + c]); cell(c, r, ch, inverse); }
+  paint(screen, page, px) {
+    if (screen.text) return;
+    const rows = screen.mixed ? 20 : 24;
+    // The grid's characters: each cell's own dots, lit white and dark black.
+    if (this.read?.ready()) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < 40; c++) {
+          if (!this.read.cell(page, c, r)) continue;
+          for (let y = r * 8; y < r * 8 + 8; y++) {
+            const byte = this.mem[page + rowStart(y) + c];
+            for (let i = 0; i < 7; i++) square(px, c * 7 + i, y, byte >> i & 1 ? WHITE : BLACK);
+          }
+        }
       }
     }
-    if (!screen.text && this.read?.ready()) {
-      for (let r = 0; r < (screen.mixed ? 20 : 24); r++) {
-        for (let c = 0; c < 40; c++) { const hit = this.read.cell(page, c, r); if (hit) cell(c, r, hit[0], hit[1]); }
-      }
+    // The printed words: every word's box first, then every word's dots, so that no box covers another word's tail.
+    if (this.text.shapes !== undefined) {
+      const words = this.printed(page, px, rows * 8);
+      for (const w of words) for (let y = w.y0; y <= w.y1; y++) for (let x = w.x0; x <= w.x1; x++) square(px, x, y, w.paper);
+      for (const w of words) for (const [x, y] of w.dots) square(px, x, y, w.ink);
     }
-    if (!screen.text && this.text.shapes !== undefined) words.push(...this.printed(page, px, screen.mixed ? 160 : 192));
-    for (const w of words) fill(px, w.x, w.y, w.w, w.h, w.paper);
-    return words;
   }
 
-  // The printed words on the screen now. A word counts as on the screen when all its dots are there in one colour and
-  // most of the dots around it are the other colour. A word that is not on the screen is still kept: the toolkit draws
-  // on the hidden page before showing it, so a word may appear later.
+  // The printed words on the screen now. A word counts as on the screen when all its dots are there, all lit or all
+  // dark, and most of the dots around it are the other way. A word that is not on the screen is still kept: the
+  // toolkit draws on the hidden page before showing it, so a word may appear later.
   printed(page, px, rows) {
     const mem = this.mem, read = a => mem[a], { shapes, widths } = this.text;
     const bit = (x, y) => x >= 0 && x < 280 && y >= 0 && y < rows ? dot(mem, page, x, y) : -1;
@@ -76,17 +81,15 @@ export class CleanText {
     for (const p of this.prints) {
       const dots = this.dotsOf(p, read, shapes, widths);
       if (!dots || !dots.length) continue;
-      const ink = bit(...dots[0]);
-      if (ink < 0 || dots.some(([x, y]) => bit(x, y) !== ink)) continue;
+      const lit = bit(...dots[0]);
+      if (lit < 0 || dots.some(([x, y]) => bit(x, y) !== lit)) continue;
       const xs = dots.map(d => d[0]), ys = dots.map(d => d[1]), mine = new Set(dots.map(([x, y]) => x + ',' + y));
       const x0 = Math.min(...xs) - 1, x1 = Math.max(...xs) + 1, y0 = Math.min(...ys) - 1, y1 = Math.max(...ys) + 1;
       const around = [];
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!mine.has(x + ',' + y) && bit(x, y) >= 0) around.push([x, y]);
-      if (around.filter(([x, y]) => bit(x, y) !== ink).length < CONTRAST * around.length) continue;   // black on black
-      words.push({
-        grid: false, x: x0 * 2, y: y0 * 2, w: (x1 - x0 + 1) * 2, h: (y1 - y0 + 1) * 2, ch: p.words,
-        base: (p.y + WORDS_BASELINE) * 2, ink: `rgb(${commonest(px, dots)})`, paper: commonest(px, around),
-      });
+      if (!around.length) continue;
+      if (around.filter(([x, y]) => bit(x, y) !== lit).length < CONTRAST * around.length) continue;   // black on black
+      words.push({ x0, y0, x1: Math.min(x1, 279), y1: Math.min(y1, rows - 1), dots, ink: lit ? WHITE : BLACK, paper: commonest(px, around) });
     }
     return words;
   }
@@ -103,21 +106,6 @@ export class CleanText {
     }
     return dots;
   }
-
-  // A grid character is centred in its cell; a printed word is stretched to the width its dots took.
-  draw(g, words) {
-    g.replaceChildren();
-    for (const w of words) {
-      if (!w.ch.trim()) continue;   // an inverse space: background only
-      const at = w.grid ? gridText(w.x, w.y, w.ink)
-        : { y: w.base, fill: w.ink, 'font-family': WORDS, 'font-size': WORDS_SIZE, 'font-weight': WORDS_WEIGHT, 'data-x': w.x + 2, 'data-width': w.w - 4 };
-      const t = document.createElementNS(NS, 'text');
-      for (const [k, v] of Object.entries(at)) t.setAttribute(k, v);
-      t.textContent = w.ch;
-      g.append(t);
-    }
-    fit(g);
-  }
 }
 
 // the commonest colour among some dots, on the 560 by 384 pixels (two pixels a dot)
@@ -130,9 +118,10 @@ function commonest(px, dots) {
   return [...count].sort((a, b) => b[1] - a[1])[0][0].split(',').map(Number);
 }
 
-// fills a box of the 560 by 384 pixels with one colour
-function fill(px, x, y, w, h, [r, g, b]) {
-  for (let j = Math.max(0, y); j < Math.min(384, y + h); j++) {
-    for (let i = Math.max(0, x); i < Math.min(560, x + w); i++) { const o = (j * 560 + i) * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; }
+// paints one dot, x 0 to 279 and y 0 to 191, as its two by two pixels
+function square(px, x, y, [r, g, b]) {
+  if (x < 0 || x >= 280 || y < 0 || y >= 192) return;
+  for (let j = y * 2; j < y * 2 + 2; j++) {
+    for (let i = x * 2; i < x * 2 + 2; i++) { const o = (j * 560 + i) * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; }
   }
 }
