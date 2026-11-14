@@ -83,6 +83,7 @@ function after() {
   ctx.putImageData(image, 0, 0);
   layer.style.visibility = vectors.value && !text ? 'visible' : 'hidden';
   status.textContent = m.halted ? 'The game has stopped: ' + m.halted + '.' : (m.idle > 2000 ? 'Waiting for a key.' : 'Running.');
+  status.classList.toggle('error', !!m.halted);   // (a stop is what went wrong: a page that shows only those shows it)
 }
 canvas.addEventListener('pointerdown', () => canvas.focus());
 // (the keys, the Apple's codes, given by the player: play.js, keys.js)
@@ -108,7 +109,7 @@ async function c64(g, { canvas, layer, speaker }) {
     import('@moonbase-machines/c64/machine.js'), import('@moonbase-machines/c64/browser.js'),
     import('@moonbase-machines/c64/sid.js'), import('@moonbase-machines/c64/start.js'), import('@moonbase-machines/c64/d64.js')]);
   const roms = await c64Roms(makers?.choice ?? null, makers?.load);
-  if (!roms) { status.textContent = 'Commodore\'s ROMs, asked for, are not here.'; return null; }
+  if (!roms) { status.textContent = 'Commodore\'s ROMs, asked for, are not here.'; status.className = 'error'; return null; }
   g.chargen = roms.chargen;   // (the printer's paper in the machine's characters: play.js)
   const m = new C64(game, roms, { log: (...a) => console.log(...a), printer });
   // What the game SAVEs to its disk, kept on the player's disk and given back to the drive the next time (play.js
@@ -150,6 +151,7 @@ async function c64(g, { canvas, layer, speaker }) {
     }
     draw(m.vic.frame);
     status.textContent = m.halted ? 'The game has stopped: ' + m.halted + '.' : 'Running.';
+    status.classList.toggle('error', !!m.halted);
   }
   return {
     run() { canvas.focus(); pace(frame, 50, { after }); },

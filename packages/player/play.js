@@ -19,6 +19,8 @@
 //     settings     the person's settings, the page's typed store (settings.js): each declared setting's value, kept
 //     preview      the preview's build: what only it has may be used
 //     words        the page's words the player shows: { printer: { line, print, tear } }
+//   The status line, #status, says what the game is doing; what went wrong, a stop or a failure, has the class `error`,
+//   so a page that shows only those (moonbase.au's) can
 //     screen       [width, height], the screen's shape in its own dots where the page draws its own over it
 //   and what a page that follows the game asks:
 //     watch        called with { engine, press, quick } once the game is ready: its engine (where it has one), a key
