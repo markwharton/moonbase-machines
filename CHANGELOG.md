@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.15.0] - 2026-11-14
+
+### Added
+
+- a person's settings are declared once, declared.js, and drawn by settings.js control for any page (6897b97)
+
+### Fixed
+
+- the keys that scroll a page are the game's on the play page, unless a box, button or menu has them (2698296)
+
+### Documentation
+
+- fixes are a list of edits by address, never a copy of the program (8f522ca)
+
 ## [v0.14.0] - 2026-10-27
 
 ### Added
@@ -158,3 +172,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.12.0]: https://github.com/markwharton/moonbase/compare/v0.11.1...v0.12.0
 [v0.13.0]: https://github.com/markwharton/moonbase/compare/v0.12.0...v0.13.0
 [v0.14.0]: https://github.com/markwharton/moonbase/compare/v0.13.0...v0.14.0
+[v0.15.0]: https://github.com/markwharton/moonbase/compare/v0.14.0...v0.15.0
