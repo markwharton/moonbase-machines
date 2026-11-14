@@ -56,7 +56,7 @@
 import { titleOf, loadTitle, read } from './remake/load.js';
 import { savesFor } from './saves.js';
 import { code, named } from './keys.js';
-import { paperBox, phoneKeys, KEYS_MARKUP } from './parts.js';
+import { paperBox, phoneKeys, statusLine, KEYS_MARKUP } from './parts.js';
 
 // each machine's screen, in its own dots: an Apple's hi-res page, a Commodore 64's frame, border and all
 const SCREENS = { prodos: [280, 192], dos33: [280, 192], c64: [384, 272] };
@@ -79,7 +79,8 @@ export async function play(options) {
   root.append(paperBox(words.printer));
   const $ = id => root.querySelector('#' + id);
   const stage = root.querySelector('.stage'), status = $('status'), line = root.querySelector('.options .settings');
-  const fail = err => { status.textContent = 'The game stopped: ' + err.message; status.className = 'error'; console.error(err); };
+  const say = statusLine(status);
+  const fail = err => { say('The game stopped: ' + err.message, { error: true }); console.error(err); };
   // A setting the player or its engine acts on, by its declaration (settings.js): its value from the page's store,
   // and its control on the options line where the page offers it, a box for a boolean, a menu for an enum, each
   // change kept and told; `first`, before the others (the sound)
@@ -109,12 +110,12 @@ export async function play(options) {
       await new Promise(done => { link.onload = link.onerror = done; });
     }
     // (a save the disk's backend could not store, said, not lost)
-    disk.failed = err => { status.textContent = 'A file was not kept: ' + err.message; status.className = 'error'; };
+    disk.failed = err => say('A file was not kept: ' + err.message, { error: true });
     const [dots, lines] = options.screen ?? title?.screen ?? SCREENS[kind] ?? SCREENS.prodos;
     fit(stage, root, dots, lines);
 
     const g = {
-      way, slug, title, scripts, game, folder, data, stage, status, fail, disk, preview, words, fixed, $, setting,
+      way, slug, title, scripts, game, folder, data, stage, status, say, fail, disk, preview, words, fixed, $, setting,
       saves: game ? savesFor(game, disk) : null, roms: options.roms, studies: options.studies, mini: options.mini ?? null,
       chargen: null,   // (the engine's Commodore 64 characters, for the printer's paper)
       pace: () => { const p = options.pace; return typeof p === 'function' ? p() : p ?? 1; },

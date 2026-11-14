@@ -18,7 +18,7 @@ import { CardView } from '../remake/card-view.js';
 import { C64View } from '../remake/c64-view.js';
 
 export async function play(g) {
-  const { title, scripts, game: disk, stage, status, fail, saves, $ } = g;
+  const { title, scripts, game: disk, stage, say, fail, saves, $ } = g;
   const c64 = disk.kind === 'c64';
   stage.innerHTML = `<svg id="screen" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-label="The game's screen"></svg>`;
   const svg = $('screen'), drawn = c64 ? 'c64' : title.engine === 'card' ? 'card' : 'vector';
@@ -119,7 +119,7 @@ export async function play(g) {
           if (e.step === 'pause') await sleep(e.ms * g.pace());   // a delay the original counted out
         }
         view.prompts();
-        status.textContent = r === 'end' ? 'The end.' : 'Waiting for a key.';
+        say(r === 'end' ? 'The end.' : 'Waiting for a key.');
         if (!engine.keys.length || r === 'end') break;
       }
     } catch (err) { fail(err); }
@@ -143,7 +143,7 @@ export async function play(g) {
   function clock() {
     engine.sid = []; engine.clock = { irq: 0, ahead: [], since: 0 };
     let sid = null, from = null, sent = 0, stopped = false;
-    status.textContent = 'Playing.';
+    say('Playing.');
     setInterval(() => {
       engine.delay -= 1000 / 60;   // a load's time, or the last run's
       if (!stopped && !engine.ended && engine.delay < 16) {
@@ -152,7 +152,7 @@ export async function play(g) {
         // a player would press them (a wait the game counts out goes on by itself on the clock)
         if (engine.clock.ahead.length && engine.idle > (engine.routines.polls ?? 200) && !engine.keys.length && ++engine.clock.since > 120) { engine.press(engine.clock.ahead.shift()); engine.clock.since = 0; }
         try { engine.run(); queue.length = 0; view.prompts(); } catch (err) { stopped = true; fail(err); }
-        if (engine.ended) status.textContent = 'The end.';
+        if (engine.ended) say('The end.');
       }
       if (speaker?.node && sounding) {
         sid ??= new SID(speaker.rate); from ??= performance.now();
@@ -204,7 +204,7 @@ export async function play(g) {
     route({ route, name, keys: { expand, give, petscii, pollsAt } }) {
       title.seed = route.seed;   // (the random numbers from the route's seed, as the pilots have them)
       if (route.printer && title.printer) { title.printer.on = true; const box = $('printer'); if (box) box.checked = true; }
-      status.textContent = 'Playing the route ' + name + '.';
+      say('Playing the route ' + name + '.');
       // (on a Commodore 64 a key behind the one pressed goes into the KERNAL's buffer, as the pilots hold a key)
       const side = { press: k => engine.press(k), also: k => { const m = engine.mem, put = v => { if (m[0xc6] < 10) { m[0x277 + m[0xc6]] = v; m[0xc6]++; } }; if (engine.keys.length) put(engine.keys.shift()); put(k); } };
       const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'pace'); if (c64) queue.length = 0; else for (const e of queue.splice(0)) { history.push(e); view.apply(e); } };

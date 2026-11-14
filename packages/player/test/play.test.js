@@ -204,3 +204,15 @@ test('a screen read back to its characters: a cell of the font as drawn, inverse
   assert.equal(read.cell(0x4000, 2, 2), null, 'picture');
   assert.equal(reader(new Uint8Array(0x10000), { font }).ready(), false, 'no font loaded yet');
 });
+
+test('the status line: an error stays, and later ordinary text does not replace it', async () => {
+  const { statusLine } = await import('@moonbase-machines/player/parts.js');
+  const classes = new Set(), el = { textContent: '', classList: { contains: c => classes.has(c), toggle: (c, on) => on ? classes.add(c) : classes.delete(c) } };
+  const say = statusLine(el);
+  say('Running.');
+  assert.equal(el.textContent, 'Running.'); assert.ok(!classes.has('error'));
+  say('A file was not kept: full', { error: true });
+  say('Running.');
+  assert.equal(el.textContent, 'A file was not kept: full', 'the error stays');
+  assert.ok(classes.has('error'));
+});

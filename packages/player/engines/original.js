@@ -24,7 +24,7 @@ export async function play(g) {
 // An Apple II game: the machine, the canvas, the keys, and the hooks for the vectors. With Apple's
 // ROMs and the game's disk images, where the page gives them (`roms`), it is line 1, the Apple itself booting the
 // disks; without them, moonbase's (line 2), the game started at once.
-async function apple({ game, saves, roms: makers, status, setting }, { canvas, ctx, layer, speaker }) {
+async function apple({ game, saves, roms: makers, say, setting }, { canvas, ctx, layer, speaker }) {
 const [{ Machine }, { placed }, { screen }, { shapes }, { elements }] = await Promise.all([
   import('@moonbase-machines/apple2e/machine.js'), import('@moonbase-machines/apple2e/prodos.js'),
   import('@moonbase-machines/apple2e/screen.js'), import('@moonbase-machines/vector/pictures.js'), import('@moonbase-machines/vector/svg.js')]);
@@ -82,8 +82,8 @@ function after() {
   screen(m, rgba, { cols, owner: vectors.value && layer.innerHTML ? m.owner : null });
   ctx.putImageData(image, 0, 0);
   layer.style.visibility = vectors.value && !text ? 'visible' : 'hidden';
-  status.textContent = m.halted ? 'The game has stopped: ' + m.halted + '.' : (m.idle > 2000 ? 'Waiting for a key.' : 'Running.');
-  status.classList.toggle('error', !!m.halted);   // a stop is an error, so a page that shows only errors shows it
+  if (m.halted) say('The game has stopped: ' + m.halted + '.', { error: true });
+  else say(m.idle > 2000 ? 'Waiting for a key.' : 'Running.');
 }
 canvas.addEventListener('pointerdown', () => canvas.focus());
 // (the keys, the Apple's codes, given by the player: play.js, keys.js)
@@ -104,12 +104,12 @@ return {
 // (play.js `demonstrate`, the game's data's steps) is typed into the same buffer the same way, after the start, the game
 // taking each key when it asks for one; the person's first key or push of the stick drops what is left of it.
 async function c64(g, { canvas, layer, speaker }) {
-  const { game, saves, roms: makers, studies, status, printer } = g;
+  const { game, saves, roms: makers, studies, say, printer } = g;
   const [{ C64 }, { keyboard, painter }, { SID }, { c64Roms, typed: startTyped }, { add }] = await Promise.all([
     import('@moonbase-machines/c64/machine.js'), import('@moonbase-machines/c64/browser.js'),
     import('@moonbase-machines/c64/sid.js'), import('@moonbase-machines/c64/start.js'), import('@moonbase-machines/c64/d64.js')]);
   const roms = await c64Roms(makers?.choice ?? null, makers?.load);
-  if (!roms) { status.textContent = 'Commodore\'s ROMs, asked for, are not here.'; status.className = 'error'; return null; }
+  if (!roms) { say('Commodore\'s ROMs, asked for, are not here.', { error: true }); return null; }
   g.chargen = roms.chargen;   // (the printer's paper in the machine's characters: play.js)
   const m = new C64(game, roms, { log: (...a) => console.log(...a), printer });
   // What the game SAVEs to its disk, kept on the player's disk and given back to the drive the next time (play.js
@@ -151,8 +151,8 @@ async function c64(g, { canvas, layer, speaker }) {
       else if (demo !== null && typed) { demo = m.type(demo); if (!demo.length) demo = null; }
     }
     draw(m.vic.frame);
-    status.textContent = m.halted ? 'The game has stopped: ' + m.halted + '.' : 'Running.';
-    status.classList.toggle('error', !!m.halted);
+    if (m.halted) say('The game has stopped: ' + m.halted + '.', { error: true });
+    else say('Running.');
   }
   return {
     run() { canvas.focus(); pace(frame, 50, { after }); },
