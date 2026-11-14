@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.1] - 2026-11-15
+
+### Fixed
+
+- clean text no longer misses words (257cbf5)
+- pressing fire no longer sticks a held arrow key (af10b5d)
+- an error on the status line stays until the game restarts (1ab38be)
+- clean words in the mini view's band move with the band (a11540c)
+- a setting that cannot be kept goes back to its old value and says why (60a466c)
+- clean text leaves solid picture cells alone (f9a35e3)
+- words are fitted again once Inter loads (c22b61a)
+- publish-packages stops when npm cannot say whether a package is published (4e29eaf)
+
+### Changed
+
+- the text page's characters are decoded in one place (34b5701)
+- reading characters off the hi-res screen is in the Apple package (05366b2)
+- clean text has a module of its own (ff599e7)
+- the fire key and the joystick's bits are in the key tables (30f66ba)
+
+### Documentation
+
+- plain-English comments (50d3e1a)
+- the scenes engine's header says which views have Old style text (c3ff2ad)
+- the README says how a release is made (8750a69)
+
+### Maintenance
+
+- plankit's marketplace updates itself (83b2636)
+
 ## [v0.17.0] - 2026-11-14
 
 ### Added
@@ -198,3 +228,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.15.0]: https://github.com/markwharton/moonbase/compare/v0.14.0...v0.15.0
 [v0.16.0]: https://github.com/markwharton/moonbase/compare/v0.15.0...v0.16.0
 [v0.17.0]: https://github.com/markwharton/moonbase/compare/v0.16.0...v0.17.0
+[v0.17.1]: https://github.com/markwharton/moonbase/compare/v0.17.0...v0.17.1
