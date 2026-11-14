@@ -202,6 +202,9 @@ test('a screen read back to its characters: a cell of the font as drawn, inverse
   assert.deepEqual(read.cell(0x4000, 0, 0), ['A', false]);
   assert.deepEqual(read.cell(0x4000, 1, 0), ['B', true]);
   assert.equal(read.cell(0x4000, 2, 2), null, 'picture');
+  for (let k = 0; k < 8; k++) { mem[0x4000 + rowStart(32 + k) + 3] = 0xff; mem[0x4000 + rowStart(40 + k) + 3] = 0x80; }
+  assert.equal(read.cell(0x4000, 3, 4), null, 'a solid lit cell is picture, not an inverse space');
+  assert.equal(read.cell(0x4000, 3, 5), null, 'a solid dark cell is picture, not a space');
   assert.equal(reader(new Uint8Array(0x10000), { font }).ready(), false, 'no font loaded yet');
 });
 

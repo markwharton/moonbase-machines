@@ -72,7 +72,7 @@ export class CardView {
     const cell = (c, r, ch, inverse) => { if (ch === ' ' && !inverse) return; out.push({ grid: true, x: c * 14, y: r * 16, w: 14, h: 16, ch, ink: inverse ? '#000' : '#fff', paper: inverse ? [255, 255, 255] : [0, 0, 0] }); };
     const textRows = s.text ? [0, 24] : s.mixed ? [20, 24] : null;
     if (textRows) for (let r = textRows[0]; r < textRows[1]; r++) for (let c = 0; c < 40; c++) { const [ch, inverse] = textChar(mem[textRow(r) + c]); cell(c, r, ch, inverse); }
-    if (!s.text && this.read) for (let r = 0; r < (s.mixed ? 20 : 24); r++) for (let c = 0; c < 40; c++) { const hit = this.read.cell(page, c, r); if (hit) cell(c, r, hit[0], hit[1]); }
+    if (!s.text && this.read?.ready()) for (let r = 0; r < (s.mixed ? 20 : 24); r++) for (let c = 0; c < 40; c++) { const hit = this.read.cell(page, c, r); if (hit) cell(c, r, hit[0], hit[1]); }
     if (!s.text && this.text.shapes !== undefined) out.push(...this.standing(mem, page, px, s.mixed ? 160 : 192));
     for (const w of out) fill(px, w.x, w.y, w.w, w.h, w.paper);
     return out;
