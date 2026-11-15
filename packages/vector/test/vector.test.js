@@ -1,6 +1,7 @@
 // The engine's formats read and its drawing done, from bytes the tests build, nothing of a title's: pictures
 // and their shapes, a filled shape and a line drawn, objects packed both ways and put down, a picture's window
-// colour found in code, the shapes as SVG. (PART0's own drawing against draw.js runs where the games' disks are.)
+// colour found in code, the shapes as SVG, a game's code files at their addresses. (PART0's own drawing against
+// draw.js runs where the games' disks are.)
 //
 //   node --test test/*.test.js
 import { test } from 'node:test';
@@ -9,6 +10,7 @@ import { pictures, windows } from '@moonbase-machines/vector/pictures.js';
 import { draw, inside, screen } from '@moonbase-machines/vector/draw.js';
 import { decode, put } from '@moonbase-machines/vector/objects.js';
 import { document } from '@moonbase-machines/vector/svg.js';
+import { codeFiles } from '@moonbase-machines/vector/code-files.js';
 
 const name14 = s => [...s.padEnd(14)].map(c => c.charCodeAt(0));
 const picture = (name, shapes) => { const body = shapes.flatMap((s, i) => [...(i ? [0xfe] : []), s.fill, s.line, ...s.points.flat()]).concat([0xfe, 0xff]); const length = 16 + body.length; return [...name14(name), length & 0xff, length >> 8, ...body]; };
@@ -62,4 +64,10 @@ test('the shapes as SVG, each in its colour', () => {
   const svg = document([{ fill: 5, line: 15, points: [[10, 10], [30, 10], [30, 30], [10, 30]] }]);
   assert.match(svg, /^<svg/);
   assert.match(svg, /fill="rgb\(156,156,156\)" stroke="rgb\(255,255,255\)"/, 'colour 5, gray, filled; 15, white, its outline');
+});
+
+test('a game\'s code files at the addresses its map gives, else its catalog\'s', () => {
+  const volume = { PART0: { aux: 0x4000, data: btoa('\x01') }, PART1: { aux: 0x9000, data: btoa('\x02') }, PROB1: { aux: 0, data: btoa('\x03') }, PICS1: { aux: 0, data: '' } };
+  assert.deepEqual(codeFiles({ loads: { PART0: 0x4000, PART: 0x8000, PROB: 0x0800 } }, volume).map(f => [f.name, f.origin]), [['PART0', 0x4000], ['PART1', 0x8000], ['PROB1', 0x0800]]);
+  assert.deepEqual(codeFiles(undefined, volume).map(f => f.origin), [0x4000, 0x9000, 0]);
 });

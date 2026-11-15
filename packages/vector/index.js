@@ -1,6 +1,7 @@
 // @moonbase-machines/vector: Mark Wharton's vector graphics engine, every module by name, for one bundled file
 // or to take the whole package at once: import { draw } from '@moonbase-machines/vector'. Each module can be
 // imported on its own too: '@moonbase-machines/vector/<module>.js'.
+export * as codeFiles from './code-files.js';
 export * as draw from './draw.js';
 export * as font from './font.js';
 export * as inline from './inline.js';

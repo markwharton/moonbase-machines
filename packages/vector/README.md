@@ -20,6 +20,7 @@ address. The table at the end gives the main ones in both.
 | `svg.js` | `elements` and `document` draw shapes as SVG at any size, crisp as the screen was or smooth |
 | `font.js` | the engine's proportional font: each character's width and dots, and where a line of them starts |
 | `inline.js` | the text, picture names and sounds the engine reads from after a call |
+| `code-files.js` | `codeFiles` gives a game's code files, PART0, the parts and the problems, each with the address it loads at |
 
 The sixteen colors, their names and `rgb` are the Apple's own, `@moonbase-machines/apple2e/colors.js`.
 ES modules with nothing else to install, in Node and in the browser. The tests here are made from
