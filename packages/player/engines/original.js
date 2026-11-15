@@ -12,8 +12,9 @@ import { Speaker } from '../audio.js';
 import { typing as typingOf } from '../keys.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
 
-// the setting the Apple's engine acts on (play.js `setting`): its pictures drawn as vectors over the screen
-import { VECTORS } from '../declared.js';
+// The settings the Apple's engine acts on (play.js `setting`): the monitor the screen is shown on, and the pictures
+// drawn as vectors over the screen. Both take effect at the next frame.
+import { MONITOR, VECTORS } from '../declared.js';
 
 export async function play(g) {
   g.stage.innerHTML = '<svg id="vector" viewBox="0 0 140 192" preserveAspectRatio="none"></svg><canvas id="screen" width="560" height="384" tabindex="0"></canvas>';
@@ -25,10 +26,10 @@ export async function play(g) {
 // ROMs and the game's disk images, where the page gives them (`roms`), it is line 1, the Apple itself booting the
 // disks; without them, moonbase's (line 2), the game started at once.
 async function apple({ game, saves, roms: makers, say, setting }, { canvas, ctx, layer, speaker }) {
-const [{ Machine }, { placed }, { screen }, { shapes }, { elements }] = await Promise.all([
+const [{ Machine }, { placed }, { screen, PHOSPHORS }, { shapes }, { elements }] = await Promise.all([
   import('@moonbase-machines/apple2e/machine.js'), import('@moonbase-machines/apple2e/prodos.js'),
   import('@moonbase-machines/apple2e/screen.js'), import('@moonbase-machines/vector/pictures.js'), import('@moonbase-machines/vector/svg.js')]);
-const vectors = setting(VECTORS);
+const monitor = setting(MONITOR), vectors = setting(VECTORS);
 // the title's saves on its own volume, the player's disk's (play.js `saves`): on line 2 the machine's files; on line 1
 // written onto that volume's disk before it boots, and kept as the title's DOS writes it
 const saving = saves.data;
@@ -79,7 +80,7 @@ function after() {
   speaker.feed(sound ? m.clicks : [], m.cpu.cycles); m.clicks.length = 0;
   if (!hooked) hook();
   const text = m.sw.text;
-  screen(m, rgba, { cols, owner: vectors.value && layer.innerHTML ? m.owner : null });
+  screen(m, rgba, { cols, owner: vectors.value && layer.innerHTML ? m.owner : null, ink: PHOSPHORS[monitor.value] });
   ctx.putImageData(image, 0, 0);
   layer.style.visibility = vectors.value && !text ? 'visible' : 'hidden';
   if (m.halted) say('The game has stopped: ' + m.halted + '.', { error: true });

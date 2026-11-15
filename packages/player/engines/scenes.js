@@ -2,13 +2,14 @@
 // remake's engine (remake/engine.js), its events drawn by the view on the stage, the view the machine's (an Apple's
 // hi-res page for a card title, CardView; a Commodore 64's, C64View; a vector title's pictures and text, View); the
 // settings it acts on (play.js `game.setting`): Clean text, where the view draws clean text (View, and CardView
-// for a title with `text`), and the mini view, where the page gives one and the title has a place for it. A run's
+// for a title with `text`); the monitor, where the view paints the Apple's screen (CardView); and the mini view,
+// where the page gives one and the title has a place for it. A run's
 // events are drawn one after another, with a moment for each sound and flash, so that what the original took time
 // over takes time here too.
 import { makeEngine } from '../remake/load.js';
 
-// The settings this engine acts on (play.js `setting`): Clean text and the mini view.
-import { CLEAN_TEXT, MINI } from '../declared.js';
+// The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
+import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';
@@ -43,9 +44,12 @@ export async function play(g) {
   // title whose title.js has `text` (CardView). The other views draw the machine's own screen.
   const history = [];
   const cleanText = drawn === 'vector' || drawn === 'card' && title.text ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
+  // The monitor, offered where the view paints the Apple's screen (CardView). A change paints the screen again at once.
+  const monitor = drawn === 'card' ? g.setting(MONITOR) : { value: MONITOR.default, on() { return this; } };
   let onView = null;   // (the mini view's, given each view made)
-  const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.cleanText = cleanText.value; onView?.(v); return v; };
+  const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.cleanText = cleanText.value; v.monitor = monitor.value; onView?.(v); return v; };
   let view = makeView();
+  monitor.on(value => { view.monitor = value; view.prompts(); });
   engine.on(e => queue.push(view.snapshot({ ...e })));
   // The mini view, where the page gives one (`mini`) and the title has a place for it (its title.js `inset`): Off,
   // Live or Pictures, a setting; shown in the band at the top of the screen while the band is there. A picture only:

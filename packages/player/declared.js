@@ -1,7 +1,7 @@
 // The settings a person may choose, each declared once here. settings.js says what a declaration is.
 // - The player's own (play.js): the speaker, a Commodore 64's printer, and a title's version with its bugs fixed.
-// - The Remake's (engines/scenes.js): Clean text and the mini view.
-// - The Original's (engines/original.js): an Apple game's pictures drawn as vectors.
+// - The Remake's (engines/scenes.js): Clean text, the monitor of a card title, and the mini view.
+// - The Original's (engines/original.js): an Apple game's monitor, and its pictures drawn as vectors.
 // Each setting is read where it acts. A site can also let a person set them away from the game, on an account's page.
 // That page draws its controls from these declarations (settings.js `control`), so both places use the same setting.
 export const SOUND = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
@@ -10,5 +10,8 @@ export const FIXED = { name: 'fixed', type: 'boolean', default: false, owner: 'p
 // Clean text applies only where a remake draws clean text: the vector titles, and card titles with `text`. With it
 // off, the words are drawn as the game drew them.
 export const CLEAN_TEXT = { name: 'clean-text', type: 'boolean', default: true, owner: 'person', words: 'Clean text' };
-export const MINI = { name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
+// The monitor an Apple game is shown on: a colour monitor, or a monochrome monitor in the colour of its phosphor. Each
+// monochrome value names its phosphor in @moonbase-machines/apple2e/screen.js `PHOSPHORS`.
+export const MONITOR = { name: 'monitor', type: ['colour', 'green', 'amber', 'white'], default: 'colour', owner: 'person', words: 'Monitor', labels: ['Colour', 'Green', 'Amber', 'White'] };
+export const MINI ={ name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
 export const VECTORS = { name: 'vectors', type: 'boolean', default: false, owner: 'person', words: 'Draw the pictures as vectors' };

@@ -99,6 +99,14 @@ test('a setting\'s type: on or off, or one of fixed values', () => {
   assert.throws(() => check('text', 'x'), /no such type/);
 });
 
+test('the Monitor setting is Colour, or a monochrome monitor in a phosphor the Apple\'s screen paints', async () => {
+  const { MONITOR } = await import('@moonbase-machines/player/declared.js');
+  const { PHOSPHORS } = await import('@moonbase-machines/apple2e/screen.js');
+  assert.equal(MONITOR.default, 'colour');
+  assert.deepEqual(MONITOR.type.filter(v => v !== 'colour'), Object.keys(PHOSPHORS));
+  assert.equal(MONITOR.labels.length, MONITOR.type.length);
+});
+
 test('the Clean text setting is on by default', async () => {
   const { CLEAN_TEXT } = await import('@moonbase-machines/player/declared.js');
   assert.equal(CLEAN_TEXT.default, true);
