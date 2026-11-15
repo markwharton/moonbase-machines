@@ -21,7 +21,7 @@ import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout
 // layout; the difficulty; practice; repeats; the sound flag, on with its `soundOn` bit); `loads`, where its code
 // files load when its catalog has lost it; `modern`, characters a modern font draws otherwise; `routines`, its
 // engine's routines by address, each the name of its step; `problems`, each problem's own routines, by the problem's
-// number.
+// number; `draws`, those of its own routines whose time is only drawing.
 
 // A game's code files, PART0, the parts and the problems, each with the address it loads at: the map's `loads`, by
 // the file's name or its name without the digit, or else the catalog's
@@ -146,7 +146,18 @@ export function vectorRoutines(title) {
     return k;
   };
   // the machine's key reader at the Main Menu: what was running is dropped, as the original's jump drops it
-  const menu = e => { kit.drop(); e.leave(...title.menu); };
+  const menu = e => { kit.drop(); e.turning = false; e.leave(...title.menu); };
+
+  // The routines whose time is only drawing, PART0's and the title's own (its map's `draws`). The Remake draws at once, so
+  // their time is none of the clock's: their cycles stay the engine's, the original's, for the pilots, and the page's
+  // speaker leaves them out (`e.untimed`). In a turn of a game's own loop (`tick`, as Nature Park's truck) drawing
+  // keeps its time, since the game's pace there is its drawing, until the game waits for a key again (`e.turning`).
+  const DRAWS = new Set(['show', 'picture', 'box', 'panel', 'text', 'objects', 'object', 'object-keep', 'object-mode', 'white-lines', 'fill-rows', 'span', 'dot', 'line', 'rectangle', 'rectangle-outline', 'key-panel', 'key', 'key-at', 'keep-span', 'put-span', 'invert-span', 'button', 'text-screen', 'scroll', 'shift-down', 'clear-screen', ...(title.map.draws ?? [])]);
+  const untime = (e, name, from) => {
+    if (!DRAWS.has(name) || e.turning) return;
+    e.delay -= (e.cycles - from) / CYCLES_PER_MS;
+    e.untimed?.push([from, e.cycles]);
+  };
 
   // A routine of the toolkit's: the step's inputs and its event, the view's drawing (`draw`, from the inputs), then
   // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
@@ -158,6 +169,7 @@ export function vectorRoutines(title) {
   const routine = (name, { draw, after, words, keys } = {}) => (e, args, step) => {
     const waits = WAITS.has(name), from = e.cycles;
     let event = null;
+    if (waits) e.turning = false;
     // (called by the engine itself, with no step, as a visit to the menus shows the graphics again: its event and its
     // drawing only)
     if (!step) { inputs(e, name, args); e.emit(describe(name, [], e)); draw?.(e, [], []); return; }
@@ -179,16 +191,19 @@ export function vectorRoutines(title) {
     if (r === 'menu') return menu(e);
     if (r === 'quit') { e.ended = true; return; }
     if (event) e.took.set(event, (e.cycles - from) / CYCLES_PER_MS);
+    untime(e, name, from);
     after?.(e);
     if (GIVES[name] && !POLLS.has(name)) e.emit(result(name, e));
   };
   // A span of the game's code that a script has as one step, from the step's address to the script's next line: its
   // drawing for the view, which is no step of the transcript.
   const span = (name, draw) => (e, args, step) => {
+    const from = e.cycles;
     draw?.(e, args);
     if (name) { e.inside++; e.emit({ step: name }); e.inside--; }
     const r = kit.span(e, nextAt(e, step), { at: step.at });
     if (r === 'quit') e.ended = true;
+    untime(e, name, from);
   };
 
   // $641B: A $80 asks for an arrow, $B1 to $B9 a digit from 1, any other a letter from A, and the key chosen is
@@ -281,7 +296,9 @@ export function vectorRoutines(title) {
       const [left, right, top, bottom, by] = args.map(Number);
       for (let r = bottom; r >= top; r--) for (let x = left; x <= right; x++) raster.set(x, r + by, raster.get(x, r));
       e.inside++; e.emit({ step: 'shift-down', left, right, top, bottom, by }); e.inside--;
+      const from = e.cycles;
       kit.span(e, nextAt(e, step), { at: step.at });
+      untime(e, 'shift-down', from);
     },
     // a part's title marks where the original's loader starts a part, as the stack is set afresh ($4035): a step, and
     // its code on the machine to the script's next line
@@ -337,7 +354,7 @@ export function vectorRoutines(title) {
       if (e.a) { e.waitFrom = null; e.waitingOn = null; e.emit(result('read-key', e)); return; }
       if (busy) return;
       e.waitFrom ??= kit.first;
-      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / CYCLES_PER_MS; e.cycles = e.waitFrom; e.waitFrom = null; e.polled = true; e.waitingOn = step; e.asked = null; }
+      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / CYCLES_PER_MS; e.cycles = e.waitFrom; e.waitFrom = null; e.polled = true; e.waitingOn = step; e.asked = null; e.turning = false; }
     },
 
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
@@ -348,6 +365,7 @@ export function vectorRoutines(title) {
       if (keyFor(e, step) === undefined) return 'wait';
       e.waitingOn = null;
       if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits: false }) === 'menu') return menu(e);
+      e.turning = true;
       e.emit(result('tick', e));
     },
 

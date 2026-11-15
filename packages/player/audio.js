@@ -42,21 +42,35 @@ export class Speaker {
     if (this.context.state !== 'running') await this.context.resume();
   }
 
-  // the wave for the cycles from the last call up to `cycles`, given the clicks in between
-  feed(clicks, cycles) {
+  // The wave for the cycles from the last call up to `cycles`, given the clicks in between. `unheard` are the spans of
+  // cycles, [from, to], that take no time, as a Remake's drawing: the wave leaves them out.
+  feed(clicks, cycles, unheard = []) {
     if (!this.node) return;
     if (this.from === null) this.from = cycles;   // from when the sound starts, not from the machine's first cycle
-    const perSample = CYCLES_PER_SECOND / this.rate;
-    const n = Math.floor((cycles - this.from) / perSample);
-    if (n <= 0) return;
-    const wave = new Float32Array(n);
+    const perSample = CYCLES_PER_SECOND / this.rate, parts = [];
     let ci = 0;
-    for (let i = 0; i < n; i++) {
-      const t = this.from + (i + 1) * perSample;
-      while (ci < clicks.length && clicks[ci] <= t) { this.level = this.level ? 0 : 0.25; ci++; }
-      wave[i] = this.level;
+    const play = to => {
+      const n = Math.floor((to - this.from) / perSample);
+      if (n <= 0) return;
+      const wave = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const t = this.from + (i + 1) * perSample;
+        while (ci < clicks.length && clicks[ci] <= t) { this.level = this.level ? 0 : 0.25; ci++; }
+        wave[i] = this.level;
+      }
+      this.from += n * perSample;
+      parts.push(wave);
+    };
+    for (const [from, to] of unheard) {
+      if (to <= this.from) continue;
+      play(from);
+      while (ci < clicks.length && clicks[ci] <= to) ci++;
+      this.from = Math.max(this.from, to);
     }
-    this.from += n * perSample;
+    play(cycles);
+    if (!parts.length) return;
+    const wave = parts.length === 1 ? parts[0] : new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+    if (parts.length > 1) parts.reduce((at, p) => (wave.set(p, at), at + p.length), 0);
     this.node.port.postMessage(wave, [wave.buffer]);
   }
   // the cycles up to `cycles` not heard, as at a pace other than the original's: the sound goes on from there

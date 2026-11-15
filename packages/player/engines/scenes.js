@@ -85,11 +85,13 @@ export async function play(g) {
   // the original's did, played as the emulator plays them (audio.js). A vector title's routines click it on the
   // original's machine (remake/toolkit.js), where its own sound flag is on, the teacher's setting in the game. The
   // player's Sound setting (play.js) is the speaker, on or off. At a pace other than the original's nothing is heard.
+  // The cycles that took no time, as a vector title's drawing (remake/vector.js), are left out of the sound.
   const speaker = engine.timed ? new Speaker() : null;
   let sounding = true;
+  engine.untimed = [];
   const hear = heard => {
-    if (!c64) { if (heard) speaker?.feed(sounding ? engine.clicks : [], engine.cycles); else speaker?.skip(engine.cycles); }
-    engine.clicks.length = 0;
+    if (!c64) { if (heard) speaker?.feed(sounding ? engine.clicks : [], engine.cycles, engine.untimed); else speaker?.skip(engine.cycles); }
+    engine.clicks.length = 0; engine.untimed.length = 0;
   };
   // A Commodore 64's SID, its writes of a frame played a frame at a time, as the emulator plays them
   // (engines/original.js), from the page's clock: after a pause, a tab in the background, the sound goes on from now, a

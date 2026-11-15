@@ -114,9 +114,14 @@ The scripts are the same for every title. What differs is the routines their ste
 
 A title's code sits in the remake's memory where it came from, so the engine counts the time the original took
 (`Engine.time`). Each line costs its instruction's cycles, read from the opcode at its address, and a branch taken
-costs one more. A vector title's routines count their own cycles on the machine (`toolkit.js`), and a read from its
-disk takes the time the drive took. A click of the speaker is kept at its cycle and played as the emulator plays it
-(`../audio.js`).
+costs one more. A vector title's routines count their own cycles on the machine (`toolkit.js`). A click of the
+speaker is kept at its cycle and played as the emulator plays it (`../audio.js`).
+
+A vector Remake draws at once and has its files at once, so its drawing and its disk take none of the clock's time.
+Which routines only draw is `vector.js`'s list, PART0's, with the title's own in its map's `draws`. Their cycles stay
+the engine's, for the pilots, and the speaker leaves them out. Sounds, pauses, waits, flashes and the game's own code
+keep the original's time, so a loop that animates by them, as the crane's, keeps its pace. In a turn of a game's own
+loop (`tick`, as the truck's) drawing keeps its time too, since the game's pace there is its drawing.
 
 The page runs the engine on one clock (`clock.js`, sixty frames a second, `../engines/scenes.js`). Each frame, the
 engine runs a sixtieth of a second of the original's time and stops (`'frame'`), and the page draws what it did and
