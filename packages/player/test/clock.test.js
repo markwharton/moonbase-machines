@@ -1,7 +1,8 @@
-// The Remake's clock (remake/clock.js): a frame of the original's time at a time, at the page's pace.
+// The Remake's clock (remake/clock.js): a frame of the original's time at a time, at the page's pace. The script
+// engine keeps its time in its `delay`; a game on its machine has a `Clock`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clock } from '../remake/clock.js';
+import { clock, Clock, toWait } from '../remake/clock.js';
 
 // An engine that runs a millisecond of the original's time a step, as Engine.run does: it stops a frame ahead
 // ('frame'), or after as many steps as a run takes at most ('steps'), and waits for a key where `waits` says, or at a
@@ -84,4 +85,104 @@ test('a game that goes on as it waits is never waiting', () => {
   const e = engine({ waits: [10] }), c = clock(e, { goesOn: true });
   frames(c, 2);
   assert.ok(!c.waiting);
+});
+
+test('a tick owes the frame\'s time divided by the scale', () => {
+  const at1 = new Clock(), atHalf = new Clock({ scale: 0.5 });
+  at1.tick(10); atHalf.tick(10);
+  assert.equal(at1.owed, 10);
+  assert.equal(atHalf.owed, 20);
+});
+
+test('a clock never leaves more than two frames owed', () => {
+  const c = new Clock();
+  for (let i = 0; i < 5; i++) c.tick(10);
+  assert.equal(c.owed, 20);
+});
+
+test('at scale 0 a clock owes nothing, and the machine runs free', () => {
+  const c = new Clock({ scale: 0 });
+  c.tick(10);
+  assert.equal(c.owed, 0);
+  assert.ok(c.free);
+});
+
+test('a clock that warps runs free', () => {
+  const c = new Clock();
+  assert.ok(!c.free);
+  c.warp = true;
+  assert.ok(c.free);
+});
+
+// A game on its machine, as much of one as the frames use: it runs a millisecond of the original's time a step and
+// spends it from its clock, unless the clock runs free. It stops when the time owed is spent ('frame'), and waits for
+// a key where `waits` says, or at a turn of its own loop every `turns` milliseconds.
+const onClock = ({ waits = [], turns = 0 } = {}) => ({
+  clock: new Clock(), time: 0, keys: [], waitingOn: null, taken: [],
+  press(k) { this.keys.push(k); },
+  run() {
+    for (let n = 0; n < 1e5; n++) {
+      if (this.waitingOn) { if (!this.keys.length) return 'idle'; this.taken.push(this.keys.shift()); this.waitingOn = null; }
+      this.time++;
+      if (!this.clock.free) this.clock.owed -= 1;
+      if (waits.includes(this.time)) { this.waitingOn = { words: ['wait'] }; return 'idle'; }
+      if (turns && this.time % turns === 0) { this.waitingOn = { words: ['tick'] }; return 'idle'; }
+      if (!this.clock.free && this.clock.owed <= 0) return 'frame';
+    }
+    return 'steps';
+  },
+});
+
+test('with a clock of its own, a frame ticks the clock and runs the game while time is owed', () => {
+  const e = onClock(), c = clock(e);
+  c.frame();
+  assert.equal(e.time, 17, 'a frame\'s 16.7 ms, to the millisecond that spends it');
+  frames(c, 59);
+  assert.ok(e.time >= 1000 && e.time <= 1001, `a second: ${e.time} ms`);
+});
+
+test('with a clock of its own, a wait stops the frames until a key and leaves nothing owed', () => {
+  const e = onClock({ waits: [5] }), c = clock(e);
+  c.frame();
+  assert.equal(e.time, 5);
+  assert.ok(c.waiting);
+  assert.equal(e.clock.owed, 0);
+  assert.equal(c.frame().ran, false);
+  e.press(32);
+  c.frame();
+  assert.deepEqual(e.taken, [32]);
+  assert.equal(e.time, 5 + 17, 'a frame from the key');
+});
+
+test('with a clock of its own, at pace 0 the game runs until it waits', () => {
+  const e = onClock({ waits: [5000] }), c = clock(e, { pace: () => 0 });
+  c.frame();
+  assert.equal(e.time, 5000);
+  assert.ok(c.waiting);
+});
+
+test('with a clock of its own, a game\'s own loop turns with the key tapped, the key held or none', () => {
+  const e = onClock({ turns: 4 }), c = clock(e);
+  c.keys.held = 21;
+  frames(c, 2);
+  const n = e.taken.length;
+  assert.ok(n >= 8 && e.taken.every(k => k === 21), `a turn every 4 ms to the frame's end, the key held: ${e.taken}`);
+  c.keys.held = null; c.keys.tapped = 8;
+  c.frame();
+  assert.deepEqual(e.taken.slice(n), [8, -1, -1, -1], 'a frame\'s four turns, the tapped key and then none');
+});
+
+test('toWait runs a game to its wait whatever its clock\'s scale, and puts the scale back', () => {
+  const e = onClock({ waits: [3000] });
+  e.clock.scale = 0.5;
+  assert.equal(toWait(e), 'idle');
+  assert.equal(e.time, 3000);
+  assert.equal(e.clock.owed, 0, 'the game ran free, spending nothing');
+  assert.equal(e.clock.scale, 0.5);
+});
+
+test('toWait runs the script engine to its wait too', () => {
+  const e = engine({ waits: [3000] });
+  assert.equal(toWait(e), 'idle');
+  assert.equal(e.time, 3000);
 });

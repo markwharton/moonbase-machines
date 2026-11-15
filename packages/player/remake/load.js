@@ -44,14 +44,18 @@ export async function titleOf(folder) {
   return title;
 }
 
-export async function loadTitle(folder, { data, interpret = false, fixed = false } = {}) {
+export async function loadTitle(folder, { data, interpret = false, fixed = false, machine } = {}) {
   folder = new URL(folder);
   const title = await titleOf(folder);
+  // (`machine`, given, says whether the game runs on its machine, whatever its title.js says: a pilot flies both)
+  if (machine !== undefined) title.machine = machine;
   if (!ENGINES[title.engine]) {
     title.own = await import(new URL(title.engine + '.js', folder).href);
     return { title, scripts: {}, disk: null, folder };
   }
   const disk = await read(new URL(data), 'json');
+  // a title whose game runs on its machine has no scripts to load
+  if (title.machine) return { title, scripts: {}, disk, folder };
   // a script the driver says is a BASIC program on the disk (its `basic[name].program`), made from the disk, with
   // `fixed` its fixed version; the rest the title's scenes, each compiled as it arrives, or with `interpret` the scene's
   // text, run line by line (the tools' per-line coverage)
@@ -67,9 +71,10 @@ export async function loadTitle(folder, { data, interpret = false, fixed = false
 
 export { read };
 
-export function makeEngine(title, scripts) {
+// `clock`: the clock a game on its machine is given (clock.js); with none it runs without one, to each wait
+export function makeEngine(title, scripts, { clock } = {}) {
   // a title whose game runs on its machine (its title.js `machine`) has no scripts to run
-  if (title.machine) return new Game(title);
+  if (title.machine) return new Game(title, { clock });
   // (a ProDOS title's memory starts with what ProDOS leaves, as the original's does)
   const memory = { ...(title.disk?.kind === 'prodos' ? started(title.disk) : {}), ...title.memory };
   const engine = new Engine({ routines: ENGINES[title.engine](title), scripts, start: title.start, label: title.startLabel, memory });

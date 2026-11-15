@@ -20,11 +20,40 @@ export const FRAME = 1000 / 60;
 // the engine's stop: a run goes on until the original's time it has run is this far ahead (Engine.run)
 const AHEAD = 16;
 
+// The clock a game on its machine is given (game.js). It is plain: it ticks, and it can warp. It holds no rule of
+// when to do either. The page ticks it once a frame, and the engine sets its warp as a routine starts and ends.
+//
+//   clock.tick(ms)   a frame of the page's time has passed: the machine is owed that much of its own time
+//   clock.owed       the machine's time still to run, in milliseconds; the engine spends it as the machine runs
+//   clock.warp       while true the machine runs flat out: it spends none of the time owed, and is not heard
+//   clock.scale      the page's pace: 1 the original's speed, a half twice as fast, 0 the machine never held back
+//
+// A tick never leaves more than two frames owed, so a long warp is not followed by a rush to catch up.
+export class Clock {
+  constructor({ scale = 1 } = {}) { this.owed = 0; this.warp = false; this.scale = scale; }
+  tick(ms) { if (this.scale) this.owed = Math.min(this.owed + ms / this.scale, 2 * ms / this.scale); }
+  // whether the machine runs without spending the time owed
+  get free() { return this.warp || !this.scale; }
+}
+
+// Runs an engine until the game waits for a key or ends, off the clock, as a pilot, a replay or a route played
+// first does.
+export function toWait(engine) {
+  const time = engine.clock instanceof Clock ? engine.clock : null, scale = time?.scale;
+  if (time) time.scale = 0;
+  let r;
+  do { if (!time) engine.delay = 0; r = engine.run(); } while (r === 'frame');
+  if (time) time.scale = scale;
+  return r;
+}
+
 export function clock(engine, { pace = () => 1, goesOn = false } = {}) {
   const keys = { held: null, tapped: null };
   const ticking = () => engine.waitingOn?.words?.[0] === 'tick';
   const turn = () => { engine.press(keys.tapped ?? keys.held ?? -1); keys.tapped = null; };
   let waiting = false;
+  // a game on its machine has a clock of its own; the script engine keeps the time it is ahead in its `delay`
+  const time = engine.clock instanceof Clock ? engine.clock : null;
   return {
     keys, ticking,
     get waiting() { return waiting; },
@@ -33,6 +62,18 @@ export function clock(engine, { pace = () => 1, goesOn = false } = {}) {
       if (ticking() && !engine.keys.length) turn();
       if (waiting && !engine.keys.length) return { ran: false, heard: p === 1 };
       waiting = false;
+      if (time) {
+        time.scale = p; time.tick(FRAME);
+        let r = 'frame';
+        if (time.free || time.owed > 0) for (;;) {
+          r = engine.run();
+          if (r === 'idle' && ticking() && p && time.owed > 0) { turn(); continue; }
+          break;
+        }
+        // (a wait is the player's time: the frame after the key owes a frame's worth, and no more)
+        if (r === 'idle' && !goesOn && !ticking()) { waiting = true; time.owed = 0; }
+        return { ran: true, heard: p === 1 };
+      }
       engine.delay -= p ? FRAME / p : Infinity;
       let r = 'frame';
       if (engine.delay < AHEAD) for (;;) {

@@ -10,7 +10,7 @@ import { makeEngine } from '../remake/load.js';
 import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
-import { clock } from '../remake/clock.js';
+import { clock, Clock, toWait } from '../remake/clock.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';
 import { standIn } from '@moonbase-machines/c64/rom.js';
@@ -43,7 +43,7 @@ export async function play(g) {
   // drive (the drive card.js puts on the bus)
   title.disk = saves.data;
   if (c64) saves.drive(title.drive = new Drive(Uint8Array.from(atob(disk.image), ch => ch.charCodeAt(0))));
-  const engine = makeEngine(title, scripts);
+  const engine = makeEngine(title, scripts, { clock: new Clock() });
   if (title.files) saves.keep(title.files);
   const queue = [];
   // The view, and every event it has drawn. When Clean text is turned on or off, the events are drawn again from
@@ -179,7 +179,7 @@ export async function play(g) {
       say('Playing the route ' + name + '.');
       // (on a Commodore 64 a key behind the one pressed goes into the KERNAL's buffer, as the pilots hold a key)
       const side = { press: k => engine.press(k), also: k => { const m = engine.mem, put = v => { if (m[0xc6] < 10) { m[0x277 + m[0xc6]] = v; m[0xc6]++; } }; if (engine.keys.length) put(engine.keys.shift()); put(k); } };
-      const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'frame'); if (c64) queue.length = 0; else for (const q of queue.splice(0)) draw(q); };
+      const go = () => { toWait(engine); if (c64) queue.length = 0; else for (const q of queue.splice(0)) draw(q); };
       go();
       for (const [i, [k]] of expand(route.keys).entries()) { give(side, k, c64 ? petscii : undefined); engine.polls = pollsAt(route, i + 1) ?? undefined; go(); }
       engine.polls = undefined; view.prompts();

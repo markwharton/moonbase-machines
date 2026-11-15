@@ -13,8 +13,8 @@
 //     emit       event => {}, given each event in order
 //     view       true to be given the view's own events too, each marked `inside`: they are no steps of the
 //                transcript, and a view draws them (the vector toolkit's rules say which they are)
-//     enter      event => {}, given the outermost routine's event as it starts, and a view's step that runs for a
-//                while as it starts
+//     enter      event => {}, given a routine's event as it starts: the outermost routine's, and with `view` each
+//                routine given to the view inside it, and a view's step that runs for a while
 //     leave      event => {}, given the same event as the routine or the step ends
 //     left       () => {}, called when the game leaves every routine without returning
 //     tap        (name, c) => {}, given every call of the game's own into a routine of the map, however deep
@@ -23,6 +23,8 @@
 //   o.waits()    with the machine idle, whether the game waits for a key; if not, it is busy and the run goes on
 //   o.mark()     for a vector title: a run starts, and with it the time of the key just pressed
 //   o.time()     for a vector title: the last key's time, in cycles
+//   o.since()    for a vector title: the cycle at which the routine running began to wait for a key, at its first
+//                read of the keyboard that found none; null while it has not
 //   o.problem(n) for a vector title: whether problem n is in memory
 //
 // A hook is a function the processor runs when it reaches an address (`m.cpu.hooks`). It returns false to let the
@@ -100,7 +102,7 @@ export function observe(m, map, options) {
   return {
     get depth() { return s.depth; },
     get running() { return s.running; },
-    waits: rules.waits, mark: rules.mark, time: rules.time, problem: rules.problem,
+    waits: rules.waits, mark: rules.mark, time: rules.time, since: rules.since, problem: rules.problem,
   };
 }
 
@@ -154,8 +156,9 @@ function vector(s) {
     if (name.startsWith('.')) { s.returned(returnTo(c), left); return; }
     if (POLLS.has(name)) { s.returned(returnTo(c), r => { left(); if (r.a && (name !== 'blink-key' || r.c)) inside(result(name, r)); }); return; }
     const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y }, VECTOR_INLINE, z => c.read(z + map.vars.zero));
-    inside(event);
-    s.returned(back, r => { left(); if (GIVES[name]) inside(result(name, r)); });
+    const given = inside(event);
+    s.options.enter?.(given);
+    s.returned(back, r => { left(); s.options.leave?.(given); if (GIVES[name]) inside(result(name, r)); });
   };
 
   // The view's steps (the map's `view`, by the file they are in): places in the game's code where the screen
@@ -272,6 +275,7 @@ function vector(s) {
     // After a turn, the next key's time runs from the turn's start. The run stopped one instruction past it.
     mark: () => { Object.assign(time, { from: null, to: null, start: time.turn ?? m.cpu.cycles, turn: null }); },
     time: () => (time.to ?? m.cpu.cycles) - (time.from ?? time.start),
+    since: () => time.to,
     problem: n => { const b = problems[n]; if (!b) return false; for (let i = 0; i < 16; i++) if (m.read(load + i) !== b[i]) return false; return true; },
   };
 }
