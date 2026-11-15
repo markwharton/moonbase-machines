@@ -81,16 +81,21 @@ function objectsOf(title) {
   return title.objectTables = new Map(tables(files, title.map.objects).map(t => [t.address, t.objects]));
 }
 
-// The disk's pictures, by name, for the screen model
+// The disk's pictures, by name: each one's shapes, for the screen model, and its bytes after its name and length,
+// which the loader copies to $E000
 function picturesOf(title) {
-  if (title.pictureShapes || !title.disk) return title.pictureShapes;
+  if (title.pictures || !title.disk) return title.pictures;
   const volume = Object.values(title.disk.volumes)[0], map = new Map();
-  for (const [name, f] of Object.entries(volume)) if (/^PICS\d$/.test(name)) for (const p of pictures(Uint8Array.from(atob(f.data), c => c.charCodeAt(0)))) map.set(p.name, p.shapes);
-  return title.pictureShapes = map;
+  for (const [name, f] of Object.entries(volume)) if (/^PICS\d$/.test(name)) {
+    const bytes = Uint8Array.from(atob(f.data), c => c.charCodeAt(0));
+    for (const p of pictures(bytes)) map.set(p.name, { shapes: p.shapes, bytes: bytes.subarray(p.at + 16, p.at + p.length) });
+  }
+  return title.pictures = map;
 }
+const pictureOf = (title, name) => picturesOf(title)?.get(name.toUpperCase().replace(/_/g, ' '));
 
 // a picture's shapes by its name, as the disk has them, for a problem that works with them
-export const pictureShapes = (title, name) => picturesOf(title)?.get(name.toUpperCase().replace(/_/g, ' '));
+export const pictureShapes = (title, name) => pictureOf(title, name)?.shapes;
 
 // A step's words with what the scene's code wrote into its own data before the call, read from memory now: a code's
 // byte written {3:$63D8}, and a character {$4DA5}.
@@ -196,13 +201,16 @@ export function vectorRoutines(title) {
       e.mem[0xc01d] = 0;
       e.inside++; e.emit({ step: 'text-screen' }); e.inside--;
     },
-    // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}).
+    // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}). The
+    // loader copies the picture's shapes to $E000 and the routine draws them from there, so a scene can read them.
     picture: (e, args) => {
       inputs(e, 'picture', args);
       const name = filled(args.map(a => typeof a === 'object' ? a.string : a).join(' '), e.mem);
       e.emit(describe('picture', [], e, name, z => e.mem[Z(z)]));
-      const shapes = pictureShapes(title, name);
-      if (shapes) raster.picture(shapes);
+      const p = pictureOf(title, name);
+      if (!p) return;
+      e.mem.set(p.bytes, 0xe000);
+      raster.picture(p.shapes);
     },
     box: simple('box', e => raster.box(e.mem[V.layout], e.a, e.x, e.y)),
     // A panel sets the layout it clears to, as the original's panels do ($6299 and the rest). Its own text sets the
