@@ -4,8 +4,8 @@
 // with that bank shown in its top: what a scene's lifted line reads or writes, the machine reads or writes.
 //
 // Each routine of the toolkit that a scene calls runs on the machine's 6502, from the call to its return past the
-// data it takes inline. Its registers and flags, what it does to memory, its cycles, its speaker's clicks and the time
-// the disk takes are the game's own. A routine that waits for a key polls for it as on the original, until the
+// data it takes inline. Its registers and flags, what it does to memory, its cycles and its speaker's clicks are the
+// game's own; a read from the disk takes no time, as the Remake has its files at once. A routine that waits for a key polls for it as on the original, until the
 // pilots' observer of the original would give one, and stops there; it goes on with the key. The polls are the
 // player's time, so the routine's own ends at its first poll that finds no key. A busy one, which reads the keyboard
 // as it goes, goes on with none. A routine that calls back into code the title's scripts have (its `entries`, as the
@@ -34,8 +34,6 @@ export class Toolkit {
     this.menu = menu;
     const m = this.m = new Machine(game, { log: () => {} });
     m.lc.aux[1] = m.aux.subarray(0xd000, 0xe000); m.lc.aux[2] = m.aux.subarray(0xe000);
-    // (a read's time, which the Remake waits as a delay, as the Original's page has the disk take it)
-    m.diskTime = true;
     this.entries = new Map(Object.entries(entries).map(([at, to]) => [parseInt(at.slice(1), 16), to]));
     this.paused = new Map();   // each step whose routine waits for a key: its 6502's state
   }
@@ -44,11 +42,10 @@ export class Toolkit {
   set(r) { Object.assign(this.m.cpu, r); }
 
   // The loader, from the machine's start until the PC reaches `at` in auxiliary memory, where the scenes start, or
-  // the loader waits for a key (Nature Park's TITLE). The cycles and the disk's time are the engine's first delay.
+  // the loader waits for a key (Nature Park's TITLE). The cycles are the engine's first delay.
   boot(e, at) {
     const m = this.m, cpu = m.cpu;
     for (let n = 0; n < 5e7; n++) {
-      if (m.reading) { e.delay += Math.max(0, m.reading.at - cpu.cycles) / CYCLES_PER_MS; m.reading.arrive(); m.reading = null; }
       if (cpu.pc === at && m.sw.ramrd) break;
       if (m.idle > IDLE) break;
       cpu.step();
@@ -56,8 +53,7 @@ export class Toolkit {
     e.delay += cpu.cycles / CYCLES_PER_MS; e.cycles = cpu.cycles; m.clicks.length = 0;
   }
 
-  // The 6502 from where it is until `done()`, on the engine's clock. A disk's read takes the time it takes, as a
-  // delay. A JSR into the scenes' own code runs it there, inside the step (Engine.runInside), and goes on as it
+  // The 6502 from where it is until `done()`, on the engine's clock. A JSR into the scenes' own code runs it there, inside the step (Engine.runInside), and goes on as it
   // returns. With `waits`, 'wait' where the machine has seen as many polls with no key as are a wait (`IDLE`), its
   // time to the first; 'quit' when the game quits, 'menu' at the Main Menu. `first` is the cycle of the first read
   // of the keyboard that found no key, before it was made, and `picked` the cycle after the first that found one,
@@ -73,7 +69,6 @@ export class Toolkit {
     for (;; n++) {
       if (done()) break;
       if (n > 1e8) throw new Error('the toolkit runs on without end at $' + cpu.pc.toString(16));
-      if (m.reading) { e.delay += Math.max(0, m.reading.at - cpu.cycles) / CYCLES_PER_MS; m.reading.arrive(); m.reading = null; }
       if (m.halted) { r = m.halted; m.halted = false; break; }
       if (cpu.pc === this.menu) { r = 'menu'; break; }
       const to = this.entries.get(cpu.pc);
