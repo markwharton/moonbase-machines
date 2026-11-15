@@ -1,7 +1,6 @@
-// The view of a card toolkit title (card.js): the screen as the remake's memory holds
-// it, the hi-res page the soft switches show, or the text screen, painted dot for dot as the
-// machine's page paints it (@moonbase-machines/apple2e/screen.js), 560 by 384. The toolkit's pictures are bitmaps,
-// and this is them as they are; drawing them sharper is for later.
+// The view of a card title: the screen as the game's memory holds it, the hi-res page the soft switches show, or the
+// text screen, painted dot for dot as the machine's page paints it (@moonbase-machines/apple2e/screen.js), 560 by
+// 384. The toolkit's pictures are bitmaps, and this is them as they are; drawing them sharper is for later.
 //
 // The screen is painted for the monitor the Monitor setting names (`monitor`, set by engines/scenes.js): a colour
 // monitor, or a monochrome one in its phosphor's colour.

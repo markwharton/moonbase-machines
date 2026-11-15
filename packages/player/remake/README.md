@@ -1,180 +1,163 @@
-# The remake engine
+# The Remake
 
-A remake is not a game written again in JavaScript. It is the title's own code, lifted from the original into scene
-scripts, compiled to JavaScript and run on this engine. The engine stands in for the machine and for the routines the
-title called. The logic is the original's, statement for statement, so the remake does what the original did, and the
-pilots can hold the two side by side, event by event.
+A Remake is not a game written again in JavaScript. It runs the title's own code, from its own disk, on Moonbase's
+machine: the Apple IIe or the Commodore 64 on Moonbase's own ROMs. The title's map names the routines its code calls,
+by address. The observer turns each call into an event, and a view draws the events in place of the machine's
+screen. Because the code is the original's, the remake does what the original did, and the pilots can hold the two
+side by side, event by event.
+
+An Apple title's Remake has a view of its own (`../engines/scenes.js`). A Commodore 64 title's Remake is the 64
+itself, played by the Original's engine on Moonbase's ROMs (`../engines/original.js`), with the title's fixes made to
+its program when Bugs fixed is on (below).
 
 A title of its own engine is the exception: its `title.js` names a module in its folder as its `engine`, and that
 module plays the game itself (below).
 
 ## A title's folder
 
-The page gives the player the title's folder (`../README.md` says what is in it). For a remake on this engine it holds:
+The page gives the player the title's folder (`../README.md` says what is in it). For a Remake it holds:
 
-- `title.js`: the engine, `'card'` or `'vector'`; the scripts and the one it starts with; the files that load as
-  scripts (`fileScripts`); the memory at the start; the entries other scripts jump into; and the `map`, the routines
-  the scenes call, by address, each with the name of its step.
-- `<name>.scene`: the scripts, as lifted and as edited after. They are the source, and the player compiles each as
-  it loads it (below).
-- the title's own modules, where it has them: its problems (`modules`), its view's drawing (`view`) and its fixes
-  (`fixes`).
+- `title.js`: the engine, `'card'` or `'vector'`, which names the kind of toolkit the title was made with and picks
+  its view; the `map` (below); `warp`, where the title has one (The clock, below); and the title's fixes, where it
+  has them (Bugs fixed, below).
+- the title's own modules, where it has them: its view's own drawing (`view.js`, where `title.js` says `view`), its
+  fixes (`fixes`), and any other module its `title.js` names in `modules`.
 
-A script that is a BASIC program on the disk, rather than 6502 lifted into a scene, has no scene: the driver says
-which file it is (`basic`), and the player makes it from the disk as it loads (A program from the disk, below).
+## The game on its machine
 
-## A scene script
-
-A scene is a step or a statement to a line (`script.js`), each line with the address in the original it came from:
-
-```
-L0813:                          a label
-0813  if a != 127 goto L0825    a branch on a compare, or on a flag: if zero goto L0825
-0817  call L08BF                a call into the script's own code
-081C  char 32                   a step: one of the title's routines, with its inputs
-0825  x = 0                     a statement on the registers a, x and y, the flags, the stack and memory
-data $08D7 00 00 80 80          bytes of the original's tables, at their addresses
-; a comment
-```
-
-A statement is the original's own instruction, written so it can be read. The engine runs it on three registers,
-four flags, a stack and 64K of memory, as the 6502 did. A step is a call into one of the title's routines, which the
-title's `map` names by address (`0x0800: 'char'`). The engine does the routine's work in JavaScript and emits an
-event. Everything a scene does is an event: the view draws the events, and a pilot reads them as the transcript to
-hold against the original's.
-
-### Code that rewrites itself
-
-A scene is the code as text, lifted once, so it can't follow code that changes its own instructions. The 6502 does
-follow it, because it reads each instruction's bytes from memory as it runs. A routine that keeps a pointer in the
-address bytes of its own `LDA` and moves the pointer by incrementing them would be lifted as a read of one fixed
-address. Microsoft's CHRGET in 6502 BASIC is the best-known case. Such a line needs either a step, the routine
-answered in JavaScript, or a hand edit to read through the pointer instead (`a = [$007A]`, the byte at the address
-held at `$7A` and `$7B`), with the reason beside it.
-
-## Compiled to JavaScript
-
-The player compiles each scene as it loads it (`compile.js` `instantiate`, from `load.js` `loadTitle`), in a few
-milliseconds for a title. The script it makes is `{ labels, data, steps, run }`:
-
-- `labels`, each label's step;
-- `data`, the bytes the script puts in memory;
-- `steps`, each step's address, its line in the scene and its text;
-- `run`, a function for each block of the script, by the step it starts at.
-
-A run of statements that only computes is one function, a loop where it branches back to its own start, each line
-with the scene's line beside it as a comment. Anything that can stop the run stays a step of its own, so the title
-waits where it waited: a routine's step, and a read or write that may reach the I/O page. A jump, a call or a return
-ends a function.
-
-The devtools list each compiled script as `moonbase-compiled/<name>.js`, a source to read and step in, each line
-with the scene's beside it. `moonbase-compile <title folder>` compiles a title's scenes the same way without a
-page, to catch one that does not compile, and `moonbase-compile --print <title folder> <name>` shows one's
-JavaScript. There is no JSON in between. The JSON beside the title, `<name>.json`, is the game's data: its disks'
-files, its kind and where it saves. `loadTitle` with `interpret` runs each scene's text line by line instead, which
-gives the same results more slowly, for a tool that wants every line.
-
-## A program from the disk
-
-A Commodore 64 title's BASIC program is not lifted: the driver says which file on the disk it is, and the player
-makes the script from the disk it has as it loads (`programs.js`). BASIC's own text is read as statements
-(`@moonbase-machines/c64/basic-lang.js`), and a program compiled with Blitz! is read back from Blitz!'s code
-(`@moonbase-machines/c64/blitz.js`, `blitz: true`); either is compiled to JavaScript the same way
-(`@moonbase-machines/c64/basic-compile.js`), with BASIC's work done by `@moonbase-machines/c64/basic.js` as the
-script runs. A statement costs a Blitz! instruction's time or a BASIC line's, unless the driver gives a `cost`.
+`game.js`, class `Game`, is the title's game on its machine, as the engine the page drives. `load.js` makes it
+(`makeEngine`). The game is an Apple IIe (`@moonbase-machines/apple2e/machine.js`) with the game's disk in its drive,
+and the machine runs the game's own code. Nothing of the game is written again: the registers, the memory, the stack
+and the time are the machine's own.
 
 ```js
-scripts: ['boot', 'game', 'code'],
-basic: { boot: { program: { file: 'GOLDFIELDS', at: 0x0801 } }, game: { program: { file: 'GAME' }, blitz: true } }
+const { title, disk } = await loadTitle(folder, { data });
+title.disk = disk;
+const game = makeEngine(title, { clock });
+game.on(event => view.apply(event));
+game.run();        // 'idle' when the game waits for a key, 'frame' when the clock's time is spent, 'end'
+game.press(13);
 ```
 
-## The two engines
+`game.mem` is the memory the game runs in. A vector title runs in auxiliary memory, and the language card's banks
+are placed in the top of the auxiliary 64K, so that one array holds everything the game reads and writes. A card
+title runs in main memory, and its `title.screen` is the machine's soft switches.
 
-The scripts are the same for every title. What differs is the routines their steps call, and there are two sets.
+The machine counts the polls of the keyboard that find no key. When there have been 2,000, the observer says whether
+the game waits for a key or is busy. A routine that polls the keyboard while it works is busy, and the run goes on
+through it. `game.waitingOn` names the routine the game waits in, or `tick` for a turn of a loop of the game's own
+that reads the keyboard without waiting.
 
-- **Card** (`card.js`, `cards.js`, `card-view.js`, `c64-view.js`): a title on the Apple IIe or the Commodore 64. A
-  toolkit's own code is lifted into scripts too, beside the scenes. What cannot be a script is JavaScript here: the
-  routines that take their data inline after the call (fill, copy, print), the Apple's ROM routines and ProDOS's
-  calls (`@moonbase-machines/apple2e`), the Commodore 64's KERNAL, I/O page, drive, printer and BASIC
-  (`@moonbase-machines/c64`), the keyboard and the soft switches. The screen is the machine's own, written byte for
-  byte as the original wrote it.
-- **Vector** (`vector.js`, `toolkit.js`, `layout.js`, `raster.js`, `view.js`): a title on the vector engine. Its
-  scenes and its problems are lifted from their own files, each a script (`part1`, `prob2`). Its toolkit, PART0's
-  routines and the loader, runs on the Original's machine (`toolkit.js`): the Apple booted with the game's own disk,
-  whose memory is the engine's, so each routine leaves its registers, its memory, its time and its speaker's clicks
-  as the game does, and a routine that waits for a key waits there. `vector.js` gives each routine's step and paints
-  what the view shows; the view draws the pictures from their shapes as SVG (`@moonbase-machines/vector`), at any
-  size. A problem's own routines that draw are painted by the title's `paint.js` too, and those that read keys run
-  their own lifted code inside their steps.
+## The map
 
-`load.js` makes the engine from the title and its scripts (`makeEngine`), with the routines of the title's `engine`.
-`../engines/scenes.js` plays it on the page.
+A title's `map` (its `title.js`) names the routines its code calls, by address, each with the name of the event a
+call makes (`routines`). The rest of the map is what the toolkit's rules need beside them:
 
-## The original's time
+- **A vector title:** its disk's volume (`volume`); where its files load, when the disk's catalog has lost it
+  (`loads`); the routine that sets the table of objects (`objects`); where the random routine keeps its seed
+  (`seed`); the Main Menu, which the key reader jumps to (`menu`), or a way to the menus that keeps the screen and
+  puts it back (`visit`); where the toolkit keeps what the view reads (`vars`); each problem's own routines
+  (`problems`); the title's own routines the view has no drawing for, whose calls into the toolkit it draws instead
+  (`open`); places in the code where the screen changes with no routine called (`view`); a splash the loader shows
+  before the toolkit is in memory (`splash`); and characters a modern font would draw wrongly (`modern`).
+- **A card title:** where the key reader takes the random routine's seed from (`seed`); a wait for a key that stirs
+  the random routine as it polls (`stir`); a loop of the game's own that reads the keyboard each turn (`ticks`); and
+  a toolkit's sections file (`sections`).
 
-A title's code sits in the remake's memory where it came from, so the engine counts the time the original took
-(`Engine.time`). Each line costs its instruction's cycles, read from the opcode at its address, and a branch taken
-costs one more. A vector title's routines count their own cycles on the machine (`toolkit.js`). A click of the
-speaker is kept at its cycle and played as the emulator plays it (`../audio.js`).
+`events.js` says what each routine's call is as an event, in the same words for the original and the remake.
+`cards.js` has what the card toolkit's routines take inline after the call, and the Commodore 64's KERNAL as a map
+names it.
 
-A vector Remake draws at once and has its files at once, so its drawing and its disk take none of the clock's time.
-Which routines only draw is `vector.js`'s list, PART0's, with the title's own in its map's `draws`. Their cycles stay
-the engine's, for the pilots, and the speaker leaves them out. Sounds, pauses, waits, flashes and the game's own code
-keep the original's time, so a loop that animates by them, as the crane's, keeps its pace. In a turn of a game's own
-loop (`tick`, as the truck's) drawing keeps its time too, since the game's pace there is its drawing.
+## The observer
 
-The page runs the engine on one clock (`clock.js`, sixty frames a second, `../engines/scenes.js`). Each frame, the
-engine runs a sixtieth of a second of the original's time and stops (`'frame'`), and the page draws what it did and
-plays its clicks. The computer's own time comes out of the frame, so the game keeps the original's time on a fast
-computer and on a slow one. A wait for a key is the player's time, and no frame owes it. The page's `pace` sets the
-clock's rate: 1 is the original's, a half is twice as fast, and 0 runs the game until it waits. The sound plays at
-pace 1 only.
+`observer.js` is a machine and a title's map in, and events out. The page's game and the pilots' observers share it.
+It sets a hook at each routine of the map. A hook is a function the processor runs when it reaches the address, and
+the observer keeps any hook that was there before. A call into a routine is an event (`events.js` `describe`), and a
+routine's result is an event at its return (`result`). The calls a routine makes for itself are part of it, and make
+no event of their own.
+
+With `view`, the observer also gives the view's own events, each marked `inside`. These are no steps of the
+transcript. They are the calls the view needs to draw what a routine of the title's own drew, and the steps the
+map's `view` names. Each event carries its cycles, and each outermost routine's event is given to `enter` as it starts
+and to `leave` as it ends, so that the engine knows how long the routine took (`game.took`).
+
+## The views
+
+The page's runner (`../engines/scenes.js`) gives each event to a view as it happens, and the view draws it.
+
+- `view.js`, `View`: a vector title's screen as SVG, 560 by 384. Its pictures are drawn from their shapes
+  (`@moonbase-machines/vector`), smooth at any size, its objects from their own dots, and its words laid out as the
+  toolkit laid them out (`layout.js`). With Clean text on, the words are drawn in a modern face (`faces.js`). A title's
+  `view.js` draws what the title's own routines drew.
+- `card-view.js`, `CardView`: a card title's screen, the hi-res page or the text page its soft switches show,
+  painted from the machine's memory dot for dot, for the monitor the Monitor setting names. With Clean text on, a
+  title whose `title.js` has `text` has its words painted again in one colour (`clean-text.js`).
+
+## The clock
+
+The page runs the game on one clock (`clock.js`, sixty frames a second, `../engines/scenes.js`). Each frame ticks the
+game's clock, which owes the machine a sixtieth of a second of the original's time. The machine runs until it has
+spent the time owed, or until the game waits for a key (`'frame'` or `'idle'`), and the page draws what it did and
+plays its speaker's clicks. The computer's own time comes out of the frame, so the game keeps the original's time on
+a fast computer and on a slow one. A wait for a key is the player's time, and no frame owes it.
+
+The clock is plain: it ticks, and it can warp. While it warps, the machine runs flat out, spends none of the time
+owed, and is not heard. The page's `pace` is the clock's scale: 1 is the original's speed, a half is twice as fast,
+and 0 runs the game until it waits. The sound plays at pace 1 only.
+
+A title says when the machine warps, by its `title.js` `warp(step, game)`. The engine asks it as each outermost
+routine starts, with the routine's event, and clears the warp as the routine ends. A read from the disk is a step
+named `disk`. `game.turning` says whether the game is in a loop of its own that takes a key each turn without
+waiting. A title with no `warp` never warps, and plays at the original's speed throughout.
+
+```js
+warp: step => DRAWS.includes(step.step) || step.step === 'disk'
+```
+
+A routine of the toolkit's that waits for a key runs flat out, so that what it draws to ask is shown at once. When it
+returns, the time it took since its last key is owed. The cycles that ran at warp stay the machine's, so the pilots
+hold the same cycles and clicks whatever the clock did; the speaker leaves them out (`game.untimed`).
+
+`toWait(game)` runs the game to its next wait with nothing held back, as a pilot, a replay and a route played first
+do.
 
 ## Bugs fixed
 
-The remake plays the game as it was, bugs and all, because the pilots hold it against the original. A title can
-also have a version with its bugs fixed, as a separate script beside the faithful one. Its `title.js` names each
-script that version replaces:
+The Remake plays the game as it was, bugs and all, because the pilots hold it against the original. A title can also
+have a version with its bugs fixed. Its `title.js` names each program that version replaces, the module that makes
+the fixes, and for each program its file on the disk and the top of the memory it runs in:
 
 ```js
-fixed: { game: 'game-fixed' }
+basic: { game: { program: { file: 'GAME' }, blitz: true, top: 0x8000 } },
+fixed: { game: 'game-fixed' }, fixes: 'fixes',
 ```
 
-The player's setting **Bugs fixed** (`play.js`, `fixed`) is offered only for a title that has one. With it on,
-`loadTitle` makes the program from the disk with the title's fixes made first (its `fixes` module, a function
-`fixed(statements, render)` that returns the statements with every fix made and stops on one that no longer fits),
-and the program takes the fixed version's name; the page starts again when the setting changes.
-
-Because every statement is the original's, with its address, a fix is an edit to a known line, not a guess at what
-the game meant, and the fixes are a list of such edits, never a second copy of the program: each names the
-statement it changes by its address and checks it is the one it expects, so that when the program is read again
-the edits are made again, and one whose line has changed stops instead of editing the wrong line. A changed line
-keeps its address, and a line that is new has none. That keeps the fixed version the same game with only its bugs
-changed. A title of scenes that needs a fix will take the same shape, its edits made to the scene's steps before
-they are compiled; none has needed one yet.
-
-Corrupted text can be fixed the same way where the text is in the code: a string a call takes inline after it, or a
-scene's `data` line. Text the game reads from its disk at run time is the game's data, `<name>.json`, not a
-script, and a fixed script does not change it.
+The player's setting **Bugs fixed** (`../play.js`, `fixed`) is offered only for a title that has one, and the page
+starts again when it changes. With it on, `fixes.js` reads the program from the disk as statements
+(`@moonbase-machines/c64/blitz.js`), makes the fixes, and writes the statements back as the program's own code
+(`@moonbase-machines/c64/blitz-encode.js`). The drive gives that file in place of the disk's. The fixes module is a
+function `fixed(statements, render)` that returns the statements with every fix made. Each fix names the statement it
+changes by its address and checks that it is the one it expects, so a fix whose statement has changed stops the
+build instead of editing the wrong one. The encoder stops too when the fixed program no longer fits.
 
 ## A title of its own engine
 
-When `title.js` names a module as its `engine`, the title has no scripts. `loadTitle` imports that module as
-`title.own`, and the player hands it the game (`../play.js`). That engine is the original program's own, read from
-its code and written again routine for routine, playing the game's data as the original read it.
+When `title.js` names a module as its `engine`, `loadTitle` imports that module as `title.own`, and the player hands
+it the game (`../play.js`). That engine is the original program's own, read from its code and written again routine
+for routine, playing the game's data as the original read it.
 
 ## The files
 
 | File | What it is |
 |---|---|
-| `engine.js` | runs the scripts: the statements on the registers, flags, stack and memory, the steps through the routines, every step an event |
-| `script.js` | reads a scene script, a step to a line |
-| `compile.js` | compiles a scene script to JavaScript, as the page loads it (and `moonbase-compile`, a check) |
-| `programs.js` | a BASIC program made from the disk, BASIC's text or Blitz!'s code, where the driver says a script is one |
-| `load.js` | loads a title's folder, its scenes compiled or its programs made, and makes its engine |
-| `events.js` | what each step is as an event, in the same words for the original and the remake |
-| `clock.js` | the page's clock: a frame of the original's time at a time, at the page's pace |
-| `lift.js` | the lifter: a file's 6502 walked from its entries into a scene script; the card engine uses it to lift code a title's scenes miss, as it runs |
-| `card.js`, `cards.js` | the card engine's routines, and what it knows of every title it plays |
-| `vector.js`, `toolkit.js`, `layout.js`, `raster.js` | the vector engine's routines; its toolkit on the Original's machine; its text laid out as the engine laid it out; the original's screen dot for dot, for the view |
-| `view.js`, `card-view.js`, `c64-view.js` | the views: a vector title's as SVG, an Apple's hi-res page, a Commodore 64's screen |
+| `game.js` | the title's game on its machine, as the engine the page drives |
+| `observer.js` | the machine's run as events, by the title's map |
+| `events.js` | what each routine's call is as an event, in the same words for the original and the remake |
+| `cards.js` | what the card toolkit's routines take inline, a toolkit's sections file, and the Commodore 64's KERNAL as a map names it |
+| `clock.js` | the clock: a tick a frame, warp, and the page's pace |
+| `fixes.js` | a title's fixes, made to its program on the disk |
+| `load.js` | loads a title's folder and its game's data, and makes its game |
+| `view.js`, `layout.js` | a vector title's view, as SVG; its text laid out as the toolkit laid it out |
+| `card-view.js`, `clean-text.js` | a card title's view, the machine's screen; its words painted clean |
+| `faces.js` | the faces every view draws clean text in |
+| `lift.js` | the lifter: a file's 6502 walked from its entries into a listing, for a tool to print |

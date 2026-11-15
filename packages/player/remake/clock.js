@@ -1,24 +1,21 @@
-// The Remake's clock, a frame at a time (engines/scenes.js runs it sixty frames a second against the page's clock,
-// on @moonbase-machines/mos6502/pace.js). Each frame owes the engine a sixtieth of a second of the original's time,
-// at the page's pace: at 1 the original's, at a half twice as fast, at 0 none, when the game runs until it waits. The
-// engine runs until it has run that time, its cycles and its disk's reads (Engine.run's 'frame'), or until the game
-// waits for a key. A wait for a key is the player's time, which no frame owes: the next frame after the key runs a
-// frame's worth from there. What the original took is heard only at pace 1.
+// The Remake's clock. The page runs it sixty frames a second against its own clock (engines/scenes.js, on
+// @moonbase-machines/mos6502/pace.js), and each frame ticks the game's clock (`Clock`, below) by a sixtieth of a
+// second. The game runs on its machine until it has run the time its clock owes it, or until it waits for a key
+// (game.js). The page's pace is the clock's scale: at 1 the game runs at the original's speed, at a half twice as
+// fast, and at 0 it runs until it waits. A wait for a key is the player's time, which no frame owes: the frame after
+// the key owes a frame's worth from there. What the game did is heard only at pace 1.
 //
-// A game that goes on without waiting for keys, as Nature Park's truck, has each turn of its loop as a step `tick`,
-// which takes the key pressed since the last turn (`keys.tapped`) or still held (`keys.held`), or none, as the
-// Apple's keyboard told the game a key was down. The turns go on to the frame's end, each taking the time its own code
-// takes; at pace 0, a turn a frame.
+// A game that goes on without waiting for keys has each turn of its loop as a step `tick`. A turn takes the key
+// pressed since the last turn (`keys.tapped`) or the key still held (`keys.held`), or none, as the Apple's keyboard
+// told the game a key was down. The turns go on to the frame's end, each taking the time its own code takes. At pace
+// 0 there is one turn a frame.
 //
-//   const c = clock(engine, { pace, goesOn })   `pace()`, the page's pace, read each frame; `goesOn`, a game that goes
-//                                               on as it waits, as a Commodore 64's on its clock
-//   c.frame()                                   a frame: { ran, heard }, whether the engine ran and whether what it
-//                                               did is heard
-//   c.waiting                                   whether the game waits for a key
-//   c.keys                                      { held, tapped }, the turn's key
+//   const c = clock(engine, { pace })   `engine` the game (game.js); `pace()` the page's pace, read each frame
+//   c.frame()                           a frame: { ran, heard }, whether the game ran and whether what it did is heard
+//   c.waiting                           whether the game waits for a key
+//   c.keys                              { held, tapped }, the turn's key
+//   toWait(engine)                      runs the game until it waits for a key or ends, with nothing held back
 export const FRAME = 1000 / 60;
-// the engine's stop: a run goes on until the original's time it has run is this far ahead (Engine.run)
-const AHEAD = 16;
 
 // The clock a game on its machine is given (game.js). It is plain: it ticks, and it can warp. It holds no rule of
 // when to do either. The page ticks it once a frame, and the engine sets its warp as a routine starts and ends.
@@ -36,24 +33,23 @@ export class Clock {
   get free() { return this.warp || !this.scale; }
 }
 
-// Runs an engine until the game waits for a key or ends, off the clock, as a pilot, a replay or a route played
-// first does.
+// Runs a game until it waits for a key or ends, off the clock, as a pilot, a replay or a route played first does. The
+// clock's scale is 0 while it runs, and is put back after.
 export function toWait(engine) {
-  const time = engine.clock instanceof Clock ? engine.clock : null, scale = time?.scale;
-  if (time) time.scale = 0;
+  const time = engine.clock, scale = time.scale;
+  time.scale = 0;
   let r;
-  do { if (!time) engine.delay = 0; r = engine.run(); } while (r === 'frame');
-  if (time) time.scale = scale;
+  do r = engine.run(); while (r === 'frame');
+  time.scale = scale;
   return r;
 }
 
-export function clock(engine, { pace = () => 1, goesOn = false } = {}) {
+export function clock(engine, { pace = () => 1 } = {}) {
   const keys = { held: null, tapped: null };
   const ticking = () => engine.waitingOn?.words?.[0] === 'tick';
   const turn = () => { engine.press(keys.tapped ?? keys.held ?? -1); keys.tapped = null; };
+  const time = engine.clock;
   let waiting = false;
-  // a game on its machine has a clock of its own; the script engine keeps the time it is ahead in its `delay`
-  const time = engine.clock instanceof Clock ? engine.clock : null;
   return {
     keys, ticking,
     get waiting() { return waiting; },
@@ -62,29 +58,15 @@ export function clock(engine, { pace = () => 1, goesOn = false } = {}) {
       if (ticking() && !engine.keys.length) turn();
       if (waiting && !engine.keys.length) return { ran: false, heard: p === 1 };
       waiting = false;
-      if (time) {
-        time.scale = p; time.tick(FRAME);
-        let r = 'frame';
-        if (time.free || time.owed > 0) for (;;) {
-          r = engine.run();
-          if (r === 'idle' && ticking() && p && time.owed > 0) { turn(); continue; }
-          break;
-        }
-        // (a wait is the player's time: the frame after the key owes a frame's worth, and no more)
-        if (r === 'idle' && !goesOn && !ticking()) { waiting = true; time.owed = 0; }
-        return { ran: true, heard: p === 1 };
-      }
-      engine.delay -= p ? FRAME / p : Infinity;
+      time.scale = p; time.tick(FRAME);
       let r = 'frame';
-      if (engine.delay < AHEAD) for (;;) {
+      if (time.free || time.owed > 0) for (;;) {
         r = engine.run();
-        if (r === 'idle' && ticking() && p && engine.delay < AHEAD) { turn(); continue; }
+        if (r === 'idle' && ticking() && p && time.owed > 0) { turn(); continue; }
         break;
       }
-      // (at pace 0 nothing is owed after the frame, nor after a wait: the engine as far ahead as a run leaves it, so
-      // that the next frame runs a frame's worth)
-      if (!p) engine.delay = AHEAD;
-      if (r === 'idle' && !goesOn && !ticking()) { waiting = true; engine.delay = AHEAD; }
+      // (a wait is the player's time: the frame after the key owes a frame's worth, and no more)
+      if (r === 'idle' && !ticking()) { waiting = true; time.owed = 0; }
       return { ran: true, heard: p === 1 };
     },
   };

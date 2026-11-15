@@ -1,31 +1,25 @@
-// One way to start a title's remake, for the player (play.js), a replay and Node (a pilot's observer): the
-// title's title.js, from the folder it is in, with the modules it names (its problems, its paint); its scripts, each
-// scene compiled as it arrives (compile.js), or with `interpret` the scene's text itself, run line by line, or a
-// program the driver says the player makes from the disk (programs.js: a BASIC program, Blitz!'s or BASIC's own);
-// its game's data, from where the page keeps it; and an engine made from them.
+// A title's Remake, loaded and made, for the player (play.js), a replay and Node (a pilot's observer). A title is its
+// folder: its title.js, and the modules the title.js names. Its game's data is a file of its own, from where the page
+// keeps it.
 //
 //   const title = await titleOf(folder)                 the title alone: its title.js and the modules it names
-//   const { title, scripts, disk, folder } = await loadTitle(folder, { data })
-//     folder   the title's folder, an absolute URL (its title.js, its scenes, its own modules)
+//   const { title, disk, folder } = await loadTitle(folder, { data })
+//     folder   the title's folder, an absolute URL (its title.js and its own modules)
 //     data     its game's data, an absolute URL (<slug>.json: its disks' files, its kind, its saves)
 //   title.disk = disk; title.seed = 17                 (the caller's: a data disk, the seed)
-//   const engine = makeEngine(title, scripts)
-// With `fixed`, a title that has a version with its bugs fixed (its title.js `fixed`, the name of the fixed version of
-// each program it replaces, made with the title's `fixes`) runs that in place of its own. A title whose engine is its
-// own (its title.js `engine` the name of a module in its folder, not 'card' or 'vector') has no scripts here: its
-// engine is loaded with its other modules, as `title.own`, and runs the game itself (play.js).
-import { Engine } from './engine.js';
+//   const engine = makeEngine(title, { clock })
+//
+// A title whose title.js `engine` is 'card' or 'vector' runs its game on its machine: makeEngine gives the game
+// (game.js), with the clock it is given (clock.js). A title whose engine is its own names a module in its folder as
+// its `engine`. That module is loaded as `title.own`, with no game's data read here, and it plays the game itself
+// (play.js).
 import { Game } from './game.js';
-import { vectorRoutines } from './vector.js';
-import { cardRoutines } from './card.js';
-import { started } from '@moonbase-machines/apple2e/prodos.js';
-import { instantiate } from './compile.js';
-import { program } from './programs.js';
 
-const ENGINES = { vector: vectorRoutines, card: cardRoutines };
+// the engines a title's game can run on, by its title.js `engine`; any other engine is the title's own
+const MACHINES = new Set(['card', 'vector']);
 
-// a file read in the browser by fetch, and in Node from the disk (Node's own fs, asked of Node itself, so that the
-// browser's files import nothing of Node's)
+// A file is read by fetch in the browser, and from the disk in Node. Node's fs is asked of Node itself, so that the
+// browser's files import nothing of Node's.
 async function read(url, as) {
   if (url.protocol === 'file:') { const text = globalThis.process.getBuiltinModule('node:fs').readFileSync(url, 'utf8'); return as === 'json' ? JSON.parse(text) : text; }
   const r = await fetch(url);
@@ -37,47 +31,27 @@ const defaultOf = async url => (await import(url.href)).default;
 export async function titleOf(folder) {
   folder = new URL(folder);
   const title = { ...(await defaultOf(new URL('title.js', folder))) };
-  // the modules a title has of its own, as its title.js names them (paint.js), and its view's own
-  // drawing (view.js), where it says it has one
+  // the modules the title's title.js names (`modules`), each by its name, and its view's own drawing (view.js), where
+  // it says it has one (`view`)
   for (const name of title.modules ?? []) title[name] = await defaultOf(new URL(name + '.js', folder));
   if (title.view) title.viewSteps = await defaultOf(new URL('view.js', folder));
   return title;
 }
 
-export async function loadTitle(folder, { data, interpret = false, fixed = false, machine } = {}) {
+export async function loadTitle(folder, { data } = {}) {
   folder = new URL(folder);
   const title = await titleOf(folder);
-  // (`machine`, given, says whether the game runs on its machine, whatever its title.js says: a pilot flies both)
-  if (machine !== undefined) title.machine = machine;
-  if (!ENGINES[title.engine]) {
+  if (!MACHINES.has(title.engine)) {
     title.own = await import(new URL(title.engine + '.js', folder).href);
-    return { title, scripts: {}, disk: null, folder };
+    return { title, disk: null, folder };
   }
   const disk = await read(new URL(data), 'json');
-  // a title whose game runs on its machine has no scripts to load
-  if (title.machine) return { title, scripts: {}, disk, folder };
-  // a script the driver says is a BASIC program on the disk (its `basic[name].program`), made from the disk, with
-  // `fixed` its fixed version; the rest the title's scenes, each compiled as it arrives, or with `interpret` the scene's
-  // text, run line by line (the tools' per-line coverage)
-  const io = title.io ? { io: title.io } : undefined;
-  const scripts = Object.fromEntries(await Promise.all(title.scripts.map(async n => {
-    const basic = title.basic?.[n];
-    if (basic?.program) return [n, await program(title, disk, n, basic, (fixed && title.fixed?.[n]) || false, folder)];
-    const scene = await read(new URL(n + '.scene', folder), 'text');
-    return [n, interpret ? scene : instantiate(scene, n, io)];
-  })));
-  return { title, scripts, disk, folder };
+  return { title, disk, folder };
 }
 
 export { read };
 
-// `clock`: the clock a game on its machine is given (clock.js); with none it runs without one, to each wait
-export function makeEngine(title, scripts, { clock } = {}) {
-  // a title whose game runs on its machine (its title.js `machine`) has no scripts to run
-  if (title.machine) return new Game(title, { clock });
-  // (a ProDOS title's memory starts with what ProDOS leaves, as the original's does)
-  const memory = { ...(title.disk?.kind === 'prodos' ? started(title.disk) : {}), ...title.memory };
-  const engine = new Engine({ routines: ENGINES[title.engine](title), scripts, start: title.start, label: title.startLabel, memory });
-  engine.title = title;
-  return engine;
+// The game on its machine. `clock` is the clock it runs on (clock.js); with none, it runs to each wait.
+export function makeEngine(title, { clock } = {}) {
+  return new Game(title, { clock });
 }

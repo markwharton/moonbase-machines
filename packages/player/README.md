@@ -5,8 +5,9 @@ The player for Mark Wharton's titles of 1985 to 1995, one way in for every title
 - **Original** (`way: 'original'`, `engines/original.js`): the game's own disk, untouched, on Moonbase's Apple IIe or
   Commodore 64 (`@moonbase-machines/apple2e`, `c64`). It's the Original on the makers' ROMs, where the page gives
   them (`roms`), and the Replica on Moonbase's own ROMs, which need nothing of Apple's or Commodore's.
-- **Remake** (`way: 'remake'`): the game's scenes, lifted from its code and compiled to JavaScript, on the remake's
-  engine (`engines/scenes.js`, a title of `card` or `vector` scenes), or the title's own engine, a module in its folder.
+- **Remake** (`way: 'remake'`): the game's own code on Moonbase's machine, its calls drawn by a view of its own for an
+  Apple title (`engines/scenes.js`, a `card` or `vector` title), the 64 itself for a Commodore 64 title, or the
+  title's own engine, a module in its folder.
 
 [The four layers](../../docs/layers.md) explains how the Original, the Replica and the Remake differ, and what runs
 each one.
@@ -29,12 +30,11 @@ dialogs (`disk/dialogs.js`, in a modal window, `modal.js`). A game saved in one 
 No title is named in it. A title is a folder of its own, kept with the title, which the page gives the player:
 
 - `title.js`, what the title is: its engine (`'card'`, `'vector'` or a module of its own), its screen where it is not
-  its machine's (`screen`, in its own dots), its scripts and the one it starts with, its `map` (the routines its
-  scenes call, by address, and what its engine needs beside them: `remake/cards.js` and `remake/vector.js` say what
-  each engine reads), the modules it brings (`modules`, its problems; `view`, its view's own drawing), its font's own
-  glyphs (`font`), its stylesheet (`style`);
-- its scenes (`<name>.scene`), which the player compiles as it loads them; `remake/README.md` says what a scene is,
-  how it is compiled and run, a program the player makes from the disk instead (`basic`), and the two engines.
+  its machine's (`screen`, in its own dots), its `map` (the routines its code calls, by address, and what the
+  toolkit's rules need beside them), when its machine warps (`warp`), the modules it brings (`modules`; `view`, its
+  view's own drawing; `fixes`, its bugs fixed), its stylesheet (`style`);
+- its own modules; `remake/README.md` says how the Remake runs the game on its machine, what the map holds, and how
+  the views draw it.
 
 Beside it the game's data, `<name>.json` (its disks' files, its kind, where it saves, `saves`, and its demonstrations,
 `demonstrations`, where its sheet has some: each a name and the steps a person types to see it, which the Original
@@ -55,8 +55,7 @@ types into a Commodore 64 game at a button of that name; `data.js` makes the fil
 </script>
 ```
 
-`moonbase-compile <title folder>` compiles a title's scenes as the page would, to catch one that does not compile,
-and `--print` shows one's JavaScript; `moonbase-play [folder] [port]` serves a title's page on this machine
-(http://127.0.0.1:8002/), the packages from `node_modules`.
+`moonbase-play [folder] [port]` serves a title's page on this machine (http://127.0.0.1:8002/), the packages from
+`node_modules`.
 
 Part of Moonbase (moonbase.au). MIT; see LICENSE. Each file opens with what it is and what it covers.

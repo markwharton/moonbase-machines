@@ -1,8 +1,8 @@
 # The four layers
 
-A title can run four ways. The first is the real machine. The other three are Moonbase's, and each one
-replaces a little more of the original with JavaScript. In every layer the logic is the game's own. What
-changes is what runs it. Before the layers, here is what the machine was.
+A title can run four ways. The first is the real machine. The other three are Moonbase's. In every layer the
+game's own code runs. What changes is what answers its calls into the ROM, and what draws its screen. Before
+the layers, here is what the machine was.
 
 ## The machine
 
@@ -34,7 +34,7 @@ known addresses. Moonbase can stand in for each of them.
 | 1 | The machine | a real 6502 | the real chips |
 | 2 | **Original** | Moonbase's 6502, an instruction at a time | Apple's or Commodore's own ROM bytes, run on that 6502 |
 | 3 | **Replica** | the same 6502, the same way | JavaScript, answering each call at its address |
-| 4 | **Remake** | no 6502: the code lifted into scenes and compiled to JavaScript | the same JavaScript answers, as steps |
+| 4 | **Remake** | the same 6502, the same way, with a view that draws the game's calls | the same JavaScript |
 
 ```mermaid
 flowchart TB
@@ -42,7 +42,7 @@ flowchart TB
   disk --> L1["1 · The machine<br/>a real Apple IIe or Commodore 64"]
   disk --> L2["2 · Original<br/>Moonbase's machine,<br/>the makers' ROMs"]
   disk --> L3["3 · Replica<br/>Moonbase's machine,<br/>Moonbase's ROMs"]
-  disk -->|"lifted, line by line"| L4["4 · Remake<br/>scenes compiled to JavaScript,<br/>on the remake engine"]
+  disk --> L4["4 · Remake<br/>Moonbase's machine,<br/>its calls drawn by a view"]
 ```
 
 The player plays layers 2, 3 and 4 (`@moonbase-machines/player`, `play()`). The way `original` is layer 2
@@ -90,71 +90,59 @@ serial bus routines rather than run as a processor of its own.
 
 ## Layer 4: the Remake
 
-The Remake has no 6502. The game's code is lifted from the original into scene scripts, a statement to a
-line with the original's address beside it, and compiled to JavaScript. The remake engine runs that
-JavaScript on the same registers, flags, stack and memory the 6502 had. A call into a known routine becomes a
-step, and every step is an event.
+The Remake runs the game's own code on the Replica's machine: Moonbase's 6502 and Moonbase's ROMs. What it
+changes is what the player sees. A title's map names the routines its code calls, by address. The observer
+(`player/remake/observer.js`) sets a hook at each of those addresses, and every call becomes an event. A view
+draws the events in place of the machine's screen, and the pilots read the same events as a transcript to hold
+against the original's.
 
 ```mermaid
 flowchart LR
-  code["The game's 6502 code"] -->|"lifted"| scene["scene scripts<br/>name.scene"]
-  scene -->|"moonbase-compile"| js["compiled/name.js"]
-  js --> engine["the remake engine<br/>registers, flags, memory"]
-  engine -->|"a step"| routines["the routines,<br/>in JavaScript"]
-  engine --> events["events"]
-  events --> view["the view draws them"]
-  events --> check["a check compares them<br/>with the original's"]
+  code["The game's code<br/>its own bytes"] --> cpu["Moonbase's 6502<br/>and Moonbase's ROMs"]
+  cpu -->|"a call into a routine of the map"| events["the observer<br/>an event"]
+  events --> view["the view draws it"]
+  events --> check["a check compares it<br/>with the original's"]
 ```
 
-The routines come in three kinds:
+How the Remake shows the game depends on the title:
 
-- **A card title** (on the Apple IIe or the Commodore 64) uses the same JavaScript answers as the Replica
-  (below). A toolkit's own code is lifted into scripts too.
-- **A vector title** calls the vector engine's routines, written again in `player/remake/vector.js` by the
-  original's rules. Its pictures are drawn from their shapes as SVG, at any size.
-- **A title of its own engine** has no scenes. Its program's engine is written again routine for routine,
-  and plays the game's data as the original read it.
+- **A vector title** has its pictures drawn from their shapes as SVG, at any size, and its words in a modern face.
+- **A card title** on the Apple IIe has the machine's own screen, the hi-res page dot for dot, with its words
+  painted again in one colour where the title says how to find them.
+- **A Commodore 64 title** is the 64 itself, on Moonbase's ROMs, with no view of its own. Its Remake can have the
+  game's bugs fixed: the fixes are made to its program on the disk.
+- **A title of its own engine** has no machine. Its program's engine is written again routine for routine, and
+  plays the game's data as the original read it.
 
-`player/remake/README.md` says how the scenes are written, compiled and run.
+The machine counts the game's time in cycles, as on layer 3. The Remake's clock can also warp: a title says which of
+its routines the machine runs through flat out, as a vector title's drawing, since a view draws at once.
+
+`player/remake/README.md` says how the Remake runs the game, what the map holds, and how the views draw it.
 
 ### One answer for the Replica and the Remake
 
-Each ROM routine a card title calls is written once, in JavaScript, and both layers 3 and 4 call that one
-function. The Replica installs it on the emulated 6502's hooks. The Remake has no 6502, so
-`player/remake/card.js` makes a stand-in with the same shape: the registers, the flags, `read` and `write`
-into the engine's memory, and an empty `hooks` map. It hands the stand-in to the same `install()`. When a scene
-reaches a step, `card.js` copies the engine's registers into the stand-in, looks up the function by the
-routine's address, runs it, and copies the registers back.
-
-```mermaid
-flowchart LR
-  r3["Layer 3 · Replica<br/>the game's JSR $FDED"] -->|"the 6502 reaches $FDED"| hooks
-  r4["Layer 4 · Remake<br/>the scene's step cout"] -->|"card.js looks up $FDED"| hooks
-  hooks["cpu.hooks<br/>(the real 6502's, or the stand-in's)"] --> fn["COUT in apple2e/rom.js<br/>one function"]
-```
+The Remake runs on the Replica's machine, so each ROM routine a title calls is written once, in JavaScript, and
+both layers 3 and 4 use that one function. It is installed on the emulated 6502's hooks (`cpu.hooks`): when the
+program counter reaches the routine's address, the function runs in its place.
 
 Some examples:
 
 - **COUT, `$FDED`, the Apple's character out.** `apple2e/rom.js` has `0xfded: () => cout(c.a)`. It takes the
   character from A, puts it on the text screen at the cursor, and leaves the cursor and registers as Apple's
-  ROM would. On the Replica, the game's `JSR $FDED` reaches the hook. On the Remake, the scene's step `cout`
-  runs the same function.
+  ROM would. The game's `JSR $FDED` reaches the hook.
 - **WAIT, `$FCA8`, the Apple's delay.** The function adds to `cycles` the time the ROM's loop took for the
-  value in A. The Replica's clock moves on by that much. The Remake adds the same cycles to the engine's time
-  (`card.js`, `rom`). So a pause lasts as long on both as it did on Apple's ROM.
+  value in A, and the machine's clock moves on by that much. So a pause lasts as long as it did on Apple's ROM.
 - **CHROUT, `$FFD2`, the Commodore 64's character out.** `c64/kernal.js` sends the character to the screen,
-  or to the drive or the printer when output has been redirected to a device on the bus. The Replica
-  installs it through `c64/rom.js`, which calls `kernal.js`'s `install()` with the machine's processor. The
-  Remake's `card.js` calls the same `install()` with its stand-in.
-- **ProDOS, `$BF00`, the Apple's files.** The two layers share a class here rather than a hook: `Files` in
-  `apple2e/mli.js`. The Replica's `mli()` reads the call number and the parameters' address from the three
-  bytes after the game's `JSR $BF00`, then calls `files.call()`. The Remake's step `prodos` reads the same
-  three bytes from its scene and makes the same call. Both read the same files from the same disk, and both
-  add a disk's time for each 512-byte block read.
+  or to the drive or the printer when output has been redirected to a device on the bus. `c64/rom.js` installs
+  it, calling `kernal.js`'s `install()` with the machine's processor.
+- **ProDOS, `$BF00`, the Apple's files.** `mli()` reads the call number and the parameters' address from the
+  three bytes after the game's `JSR $BF00`, then calls `files.call()` (`Files` in `apple2e/mli.js`). It reads
+  the files from the disk, and adds a disk's time for each 512-byte block read.
 
 Because there's one copy, a fix to COUT or to the KERNAL's LOAD fixes both layers. Layer 3 is checked against
 layer 2, the makers' own ROMs, so the Remake's routines are checked by that too. When the Remake and the
-Original differ, the difference is in the scenes or the engine, never in a second copy of the ROM.
+Original differ, the difference is in Moonbase's ROMs, the title's map or the observer, never in a second copy of
+the game.
 
 ## What each layer is for
 
@@ -163,5 +151,5 @@ Original differ, the difference is in the scenes or the engine, never in a secon
   that has them.
 - **Layer 3** runs the original program as it is, on nothing but Moonbase's code. Running it against layer 2
   shows that Moonbase's ROM answers do what the makers' ROMs did.
-- **Layer 4** is the game made new. Because it's the original's own logic, statement for statement, its
-  events can be compared with the original's, step for step, and a bug can be fixed at a known line.
+- **Layer 4** is the game made new to look at. Because it runs the original's own code, its events can be
+  compared with the original's, step for step, and a bug can be fixed at a known address.

@@ -8,7 +8,7 @@
 import { COLORS, rgb } from '@moonbase-machines/apple2e/colors.js';
 import { pictures } from '@moonbase-machines/vector/pictures.js';
 import { tables, put } from '@moonbase-machines/vector/objects.js';
-import { codeFiles } from './vector.js';
+import { codeFiles } from '@moonbase-machines/vector/code-files.js';
 import { elements } from '@moonbase-machines/vector/svg.js';
 import { width, dots } from '@moonbase-machines/vector/font.js';
 import { layout, resolve, LAYOUT, PANELS, textLayout, textPen, textPage } from './layout.js';
@@ -270,7 +270,7 @@ export class View {
     this.picturesShapes = shapes;   // the last picture's, which a problem may draw again (PROB1's colouring)
   }
   objects({ table }) { this.table = parseInt(table.slice(1), 16); }
-  // how: 'whole' ($686D), 'keep' ($686F) or 'clear' ($6863), as @moonbase-machines/vector/objects.js and raster.js say
+  // how: 'whole' ($686D), 'keep' ($686F) or 'clear' ($6863), as @moonbase-machines/vector/objects.js says
   object({ a, x, y }, how = 'whole') {
     const keep = how === 'keep', whole = how === 'whole';
     const table = this.tables.get(this.table);
@@ -325,7 +325,7 @@ export class View {
   }
   'object-keep'(e) { this.object(e, 'keep'); }
   'object-mode'(e) { this.object(e, 'clear'); }
-  // $76ED and $76F3: a key cap at the pen, which is left past it (vector.js)
+  // $76ED and $76F3: a key cap at the pen, which is left past it
   'key-at'({ a, x, y }) { this.pen.x = x; this.pen.y = y; this.key({ a }); }
   key({ a }) {
     const w = width(a);

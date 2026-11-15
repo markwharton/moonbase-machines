@@ -1,4 +1,4 @@
-// The lifter (remake/lift.js): a file's 6502 walked into a scene script.
+// The lifter (remake/lift.js): a file's 6502 walked into a listing, a step or a statement to a line.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lift, script } from '../remake/lift.js';

@@ -1,6 +1,5 @@
-// A title's fixes made to its program on the disk, for a game that runs on its machine. The script engine made a
-// fixed program from statements (programs.js); the machine runs the file itself, so the fixed statements are written
-// back as the file's own code and the drive gives that file in place of the disk's.
+// A title's fixes, made to its program on the disk. The program is read as statements, the fixes are made to them,
+// and the fixed statements are written back as the file's own code. The drive gives that file in place of the disk's.
 //
 // The title's title.js says which programs have a fixed version (`fixed`), the module that makes the fixes
 // (`fixes`, a function `fixed(statements, render)`), and for each program its file and the top of the memory it runs

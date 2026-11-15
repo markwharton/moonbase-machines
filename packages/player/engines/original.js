@@ -3,9 +3,9 @@
 // loaded when its game asks for it, the Commodore 64 (@moonbase-machines/c64) or the Apple IIe
 // (@moonbase-machines/apple2e), and not the other; on moonbase's own ROMs, which need nothing of the makers'.
 //
-// The Remake of a Commodore 64 title that runs on its machine is played here too (engines/scenes.js hands it over,
-// `remake`): the same machine on moonbase's ROMs, with the title's fixes made to its program on the disk when the
-// player's Bugs fixed setting is on (remake/fixes.js).
+// The Remake of a Commodore 64 title is played here too (engines/scenes.js hands it over, `remake`): the same machine
+// on moonbase's ROMs, with the title's fixes made to its program on the disk when the player's Bugs fixed setting is
+// on (remake/fixes.js).
 //
 // Of the player's `game` it reads: the game's data (`game`), its saves (`saves`), the stage, the status, and what only
 // a workshop has (play.js): `roms`, the makers' ROMs this machine has, an Apple game's line 1, Apple's own booting its

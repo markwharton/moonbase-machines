@@ -210,10 +210,10 @@ test('no title is named in the packages\' code, only in their comments', () => {
   assert.deepEqual(found, []);
 });
 
-test('the commands: --help says how each is used and starts nothing; a flag they do not have refused', async () => {
+test('the command: --help says how it is used and starts nothing; a flag it does not have refused', async () => {
   const { execFileSync } = await import('node:child_process');
   const run = (name, ...args) => { try { return { out: execFileSync('node', [new URL(`../bin/${name}.mjs`, import.meta.url).pathname, ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }), code: 0 }; } catch (e) { return { out: e.stderr, code: e.status }; } };
-  for (const name of ['moonbase-play', 'moonbase-compile']) {
+  for (const name of ['moonbase-play']) {
     for (const flag of ['--help', '-h']) { const r = run(name, flag); assert.equal(r.code, 0, `${name} ${flag}`); assert.match(r.out, new RegExp(`^${name} `), `${name} ${flag}: its usage`); }
     const r = run(name, '--nope'); assert.equal(r.code, 1, `${name} --nope`); assert.match(r.out, /no such flag, --nope/);
   }

@@ -1,5 +1,5 @@
-// The lifter: a file's 6502 walked from its entries into a scene script, a step to a line
-// (a tool prints them; the remake lifts at need in the browser, card.js).
+// The lifter: a file's 6502 walked from its entries into a listing, and into a script, a step or a statement to a line,
+// for a tool to print.
 import { OPS, SIZE, operand, hex } from '@moonbase-machines/mos6502/disasm.js';
 import { INLINE as READERS } from '@moonbase-machines/vector/inline.js';
 import { TAKES } from './events.js';
@@ -100,7 +100,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
   return { listing: out.join('\n'), left, reached: seen.size, size: bytes.length, lines, targets };
 }
 
-// The lifted code as a scene script, a step to a line, each line starting with the address it
+// The lifted code as a script, a step or a statement to a line, each line starting with the address it
 // came from. A call into the engine is a step with its inputs, the loads before it folded in.
 // Everything else is a statement on the registers a, x and y, the flags, and memory, written
 // $866A for an address, $86E4[y] for one indexed, and ($12)[y] for one through the zero page.

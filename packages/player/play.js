@@ -1,6 +1,6 @@
 // The player: one way in for every title and every way to play it, the Original (the game's own disk on the machine
-// it was made for) and the Remake (its scenes on the remake's engine, or the title's own engine). The player makes its
-// part of the page and owns it, the same for all: the section and its classes, the stage and its size, the options
+// it was made for) and the Remake (the game's code on Moonbase's machine, or the title's own engine). The player makes
+// its part of the page and owns it, the same for all: the section and its classes, the stage and its size, the options
 // line and the status, the keys, the sound, the printer, the saves on the title's disk, and what the page asks of it;
 // the engine plays the game on the stage and does nothing of the page's. The page tells the player everything: the
 // disk and the settings are the page's to give (its provider, provider.js), and the player reads no address and
@@ -10,8 +10,8 @@
 //                keys, route, mini, roms, studies, downloadDisk })
 //     way          'original' or 'remake' (the default)
 //     slug         the title's name in addresses: its section's class, its disk
-//     title        the title's folder, an absolute URL (title.js, its scenes, its own modules), where it
-//                  has one; a game without one (a study) has only its data
+//     title        the title's folder, an absolute URL (title.js and its own modules), where it has one; a game
+//                  without one (a study) has only its data
 //     data         its game's data, an absolute URL (<name>.json: its disks' files, its kind, its saves), or for a
 //                  title of its own engine the folder its data is in
 //     root         the page's section the player is made in
@@ -90,14 +90,13 @@ export async function play(options) {
   };
   try {
     if (!disk || !settings) throw new Error('the page gives the player its disk and its settings');
-    // the title with its bugs fixed, for one that has such a version (its title.js `fixed`), a setting: its scripts
-    // chosen as it loads, so a change loads the page again
+    // the title with its bugs fixed, for one that has such a version (its title.js `fixed`), a setting: its fixes are
+    // made as the game loads, so a change loads the page again
     const fixed = settings.get(FIXED);
     const folder = options.title ? new URL(options.title) : null, data = new URL(options.data);
-    // the title, and for its remake its scripts; the game's data (none here for a title of its own engine, which
-    // reads its own from its folder)
-    let title = null, scripts = {}, game = null;
-    if (way === 'remake') ({ title, scripts, disk: game } = await loadTitle(folder, { data, fixed }));
+    // the title, and the game's data (none here for a title of its own engine, which reads its own from its folder)
+    let title = null, game = null;
+    if (way === 'remake') ({ title, disk: game } = await loadTitle(folder, { data }));
     else if (folder) title = await titleOf(folder);
     if (!game && /\.json$/.test(data.pathname)) game = await read(data, 'json');
     const kind = game?.kind;
@@ -113,7 +112,7 @@ export async function play(options) {
     fit(stage, root, dots, lines);
 
     const g = {
-      way, slug, title, scripts, game, folder, data, stage, status, say, fail, disk, preview, words, fixed, $, setting,
+      way, slug, title, game, folder, data, stage, status, say, fail, disk, preview, words, fixed, $, setting,
       saves: game ? savesFor(game, disk) : null, roms: options.roms, studies: options.studies, mini: options.mini ?? null,
       chargen: null,   // (the engine's Commodore 64 characters, for the printer's paper)
       pace: () => { const p = options.pace; return typeof p === 'function' ? p() : p ?? 1; },
