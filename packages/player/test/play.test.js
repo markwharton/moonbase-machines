@@ -145,6 +145,24 @@ test('a setting\'s value is checked: a visit\'s value not of the type refused an
   assert.throws(() => settingsStore({ disks: { person: disk }, fixed: { sound: 'off' } }).get(SOUND), /fixed at "off"/);
 });
 
+test('a change to a setting is heard by every listener at once, wins over the visit\'s value, and is refused where the page fixes it', async () => {
+  const disk = await openDisk(settingsDisk('person'), { backend: memory() });
+  const store = settingsStore({ disks: { person: disk }, visit: def => ({ sound: false })[def.name], fixed: { fixed: true } });
+  const heard = [], also = [];
+  store.on(SOUND, v => heard.push(v));
+  const stop = store.on(SOUND, v => also.push(v));
+  assert.equal(store.get(SOUND), false, 'the visit\'s value');
+  const kept = store.set(SOUND, true);
+  assert.deepEqual(heard, [true], 'heard before the change is stored');
+  assert.equal(store.get(SOUND), true, 'the change wins over the visit\'s value');
+  await kept;
+  stop();
+  await store.set(SOUND, false);
+  assert.deepEqual([heard, also], [[true, false], [true]], 'a listener that stopped hears no more');
+  assert.throws(() => store.set(FIXED, false), /fixed by the page/);
+  assert.throws(() => store.set(SOUND, 'loud'), /not on or off/);
+});
+
 test('the provider: every disk on the one backend it is given, and the settings kept there too', async () => {
   const backend = memory();
   const { disk, settings } = await provider({ backend, visit: def => def.name === 'sound' ? false : undefined, hidden: ['vectors'] });

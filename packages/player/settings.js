@@ -21,9 +21,14 @@
 //     visit     def => a value for this visit, or undefined: the site's, from wherever it lets a visit set one (its
 //               address, say); checked here, a value not of the type refused and said once; never kept
 //     fixed     { name: value }, what the page fixes, over everything; hidden, [name], what it does not offer
-//   settings.get(def)          its value: the page's fixed one, else the visit's, else the kept one where it is of
-//                              the type (one that is not falls back, said), else its default
-//   settings.set(def, value)   kept, for the next visit; a promise, kept when stored (a value not of the type throws)
+//   settings.get(def)          its value: the page's fixed one, else one set during this visit, else the visit's
+//                              from the site (its address), else the kept one where it is of the type (one that is
+//                              not falls back, said), else its default
+//   settings.set(def, value)   its value from now on, kept for the next visit too. Every listener hears it at once.
+//                              Returns a promise, kept when stored. A value not of the type, or a setting the page
+//                              fixes, throws.
+//   settings.on(def, f)        f(value) on every change of its value, wherever it was made. Returns a function that
+//                              stops it.
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
 //
 //   control(def, settings, changed?, failed?)   a setting's control, as a <label>: a box for a boolean or a menu
@@ -96,13 +101,16 @@ export function settingsStore({ disks, visit = () => undefined, fixed = {}, hidd
     if (!seen.has(def.name)) { seen.add(def.name); if (!check(def.type, def.default)) throw new Error(`settings: ${def.name}'s default ${JSON.stringify(def.default)} is not ${describe(def.type)}`); }
     return l;
   };
-  return {
+  const now = {};   // (the values set during this visit, by name, over the visit's from the site)
+  const listeners = new Map();   // (each setting's listeners, by name)
+  const store = {
     get(def) {
       const l = layer(def);
       if (def.name in fixed) {
         if (!check(def.type, fixed[def.name])) throw new Error(`settings: ${def.name} fixed at ${JSON.stringify(fixed[def.name])}, not ${describe(def.type)}`);
         return fixed[def.name];
       }
+      if (def.name in now) return now[def.name];
       const v = visit(def);
       if (v !== undefined) {
         if (check(def.type, v)) return v;
@@ -116,10 +124,19 @@ export function settingsStore({ disks, visit = () => undefined, fixed = {}, hidd
     },
     set(def, value) {
       const l = layer(def);
+      if (def.name in fixed) throw new Error(`settings: ${def.name} is fixed by the page`);
       if (!check(def.type, value)) throw new Error(`settings: ${def.name} cannot be ${JSON.stringify(value)}: not ${describe(def.type)}`);
-      l.kept[def.name] = value;
+      now[def.name] = l.kept[def.name] = value;
+      for (const f of listeners.get(def.name) ?? []) f(value);
       return l.disk.write(FILE, textBytes(JSON.stringify(l.kept)));
+    },
+    on(def, f) {
+      layer(def);
+      const told = listeners.get(def.name) ?? listeners.set(def.name, new Set()).get(def.name);
+      told.add(f);
+      return () => told.delete(f);
     },
     offered: def => !hidden.includes(def.name) && !(def.name in fixed),
   };
+  return store;
 }
