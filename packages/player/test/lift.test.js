@@ -32,6 +32,11 @@ test('a byte of a call\'s data that the code writes is named by its address', ()
   assert.deepEqual(lines(code, { 0x6000: 'text', 0x7000: 'sound' }).filter(l => /text|sound/.test(l)), ['0805  text "A{$0809}"', '0810  sound 1 2 3 $0816 $0817']);
 });
 
+test('a routine in the file, reached by a jump or by running on into it, is its step and a return there', () => {
+  // $0800 LDA #1  JMP $0806  $0805 RTS  $0806 the routine's code, DEX  RTS
+  assert.deepEqual(lines([0xa9, 1, 0x4c, 0x06, 0x08, 0x60, 0xca, 0x60], { 0x0806: 'jump' }), ['0800  a = 1', '0802  goto L0806', '0806  jump a', '0806  return']);
+});
+
 test('a jump out of the file to code that is no routine stays a jump into the engine', () => {
   assert.deepEqual(lines([0x4c, 0x00, 0x60], { 0x500c: 'dot' }), ['0800  goto-engine $6000']);
 });

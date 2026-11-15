@@ -22,6 +22,12 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
     let pc = queue.pop();
     const regs = {};
     while (inFile(pc) && !lines.has(pc)) {
+      // A routine of the map's in the file, reached by a jump, a branch or running on into it, is its step: the
+      // original's routine runs and returns to this code's caller, as a step and a return at its own address.
+      if (routines[pc] && !entries.includes(pc)) {
+        lines.set(pc, { line: routines[pc] + '   ; reached at its own address', end: pc, op: 'JMP', mode: 'abs', value: pc, call: { name: routines[pc], tail: true }, stop: true });
+        break;
+      }
       seen.add(pc);
       const at = pc - origin, op = OPS[bytes[at]];
       if (op.name === '???') { lines.set(pc, { line: '.byte $' + hex(bytes[at], 2) + '   ; not an instruction', end: pc + 1 }); break; }
