@@ -6,4 +6,5 @@ export * as font from './font.js';
 export * as inline from './inline.js';
 export * as objects from './objects.js';
 export * as pictures from './pictures.js';
+export * as steps from './steps.js';
 export * as svg from './svg.js';

@@ -11,6 +11,7 @@ import { Raster } from './raster.js';
 import { label16 } from './engine.js';
 import { Toolkit, IDLE } from './toolkit.js';
 import { INLINE } from '@moonbase-machines/vector/inline.js';
+import { DRAWS as DRAWN } from '@moonbase-machines/vector/steps.js';
 import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout.js';
 
 // A vector title's map (its title.js `map`): `volume`, its disk's volume; `objects`, the routine that sets the table
@@ -152,7 +153,7 @@ export function vectorRoutines(title) {
   // their time is none of the clock's: their cycles stay the engine's, the original's, for the pilots, and the page's
   // speaker leaves them out (`e.untimed`). In a turn of a game's own loop (`tick`, as Nature Park's truck) drawing
   // keeps its time, since the game's pace there is its drawing, until the game waits for a key again (`e.turning`).
-  const DRAWS = new Set(['show', 'picture', 'box', 'panel', 'text', 'objects', 'object', 'object-keep', 'object-mode', 'white-lines', 'fill-rows', 'span', 'dot', 'line', 'rectangle', 'rectangle-outline', 'key-panel', 'key', 'key-at', 'keep-span', 'put-span', 'invert-span', 'button', 'text-screen', 'scroll', 'shift-down', 'clear-screen', ...(title.map.draws ?? [])]);
+  const DRAWS = new Set([...DRAWN, ...(title.map.draws ?? [])]);
   const untime = (e, name, from) => {
     if (!DRAWS.has(name) || e.turning) return;
     e.delay -= (e.cycles - from) / CYCLES_PER_MS;
