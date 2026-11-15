@@ -60,7 +60,8 @@ export class Toolkit {
   // delay. A JSR into the scenes' own code runs it there, inside the step (Engine.runInside), and goes on as it
   // returns. With `waits`, 'wait' where the machine has seen as many polls with no key as are a wait (`IDLE`), its
   // time to the first; 'quit' when the game quits, 'menu' at the Main Menu. `first` is the cycle of the first read
-  // of the keyboard that found no key, before it was made.
+  // of the keyboard that found no key, before it was made, and `picked` the cycle after the first that found one,
+  // for the pilots, which time a key from there to the next wait.
   go(e, done, { waits = false } = {}) {
     const m = this.m, cpu = m.cpu;
     cpu.cycles = e.cycles; this.jsr = false; this.first = null;
@@ -77,6 +78,7 @@ export class Toolkit {
       if (reads && none) this.first ??= cpu.cycles;
       this.jsr = m.read(cpu.pc) === 0x20;
       cpu.step();
+      if (reads && !none) this.picked ??= cpu.cycles;
       if (waits && m.idle > IDLE) { r = 'wait'; break; }
     }
     // (a wait's polls are the player's time: the routine's ends at its first poll that finds no key)
@@ -148,8 +150,8 @@ export class Toolkit {
   }
   // whether `step`'s routine waits for a key now
   waits(step) { return this.paused.has(step); }
-  // a key for a waiting routine, into the machine's keyboard
-  press(k) { this.m.press(k); }
+  // a key for a waiting routine, into the machine's keyboard; the next read that finds it is `picked`
+  press(k) { this.m.press(k); this.picked = null; }
   // everything waiting dropped, as the original's jump to its Main Menu drops what was running and resets its stack
   drop() { this.paused.clear(); this.m.cpu.sp = 0xfe; }
 
