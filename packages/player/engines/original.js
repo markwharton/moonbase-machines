@@ -16,6 +16,10 @@ import { pace } from '@moonbase-machines/mos6502/pace.js';
 // drawn as vectors over the screen. Both take effect at the next frame.
 import { MONITOR, VECTORS } from '../declared.js';
 
+// The settings this engine acts on for a game (play.js `using`): an Apple game's monitor and its pictures drawn as
+// vectors. A Commodore 64 game's are the player's own.
+export const uses = ({ game }) => game.kind === 'c64' ? [] : [MONITOR, VECTORS];
+
 export async function play(g) {
   g.stage.innerHTML = '<svg id="vector" viewBox="0 0 140 192" preserveAspectRatio="none"></svg><canvas id="screen" width="560" height="384" tabindex="0"></canvas>';
   const canvas = g.stage.querySelector('canvas'), ctx = canvas.getContext('2d'), layer = g.stage.querySelector('#vector');

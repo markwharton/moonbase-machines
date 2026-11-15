@@ -19,6 +19,13 @@ import { View } from '../remake/view.js';
 import { CardView } from '../remake/card-view.js';
 import { C64View } from '../remake/c64-view.js';
 
+// The settings this engine acts on for a game (play.js `using`): Clean text where its view draws text of its own, the
+// monitor for a card title's Apple screen, and the mini view where the page gives one and the title has a place for it.
+export function uses({ title, game, mini }) {
+  const drawn = game.kind === 'c64' ? 'c64' : title.engine === 'card' ? 'card' : 'vector';
+  return [...(drawn === 'vector' || drawn === 'card' && title.text ? [CLEAN_TEXT] : []), ...(drawn === 'card' ? [MONITOR] : []), ...(title.inset && mini ? [MINI] : [])];
+}
+
 export async function play(g) {
   const { title, scripts, game: disk, stage, say, fail, saves, $ } = g;
   const c64 = disk.kind === 'c64';

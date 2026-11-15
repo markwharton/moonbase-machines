@@ -6,7 +6,7 @@
 // disk and the settings are the page's to give (its provider, provider.js), and the player reads no address and
 // keeps nothing in the browser itself.
 //
-//   await play({ way, slug, title, data, root, disk, settings, controls, preview, words, screen, watch, claim, pace,
+//   await play({ way, slug, title, data, root, disk, settings, controls, using, preview, words, screen, watch, claim, pace,
 //                keys, route, mini, roms, studies, downloadDisk })
 //     way          'original' or 'remake' (the default)
 //     slug         the title's name in addresses: its section's class, its disk
@@ -19,6 +19,8 @@
 //     settings     the person's settings, the page's typed store (settings.js): each declared setting's value, kept
 //     controls     the page's element for the settings' controls, such as a bar at the top of the page; without it
 //                  they go on the options line under the game
+//     using        called with the settings this game uses (declared.js), once its title and data are loaded and
+//                  before it runs, for the page to place their controls
 //     preview     the preview's build: what only it has may be used
 //     words        the page's words the player shows: { printer: { line, print, tear } }
 //     screen       [width, height], the screen's shape in its own dots where the page draws its own over it
@@ -86,7 +88,11 @@ export async function play(options) {
   const fail = err => { say('The game stopped: ' + err.message, { error: true }); console.error(err); };
   // A setting the player or its engine acts on, by its declaration (settings.js `offer`): its value from the page's
   // store, and its control with the controls where the page offers it; `first`, before the others (the sound)
-  const setting = (def, { first = false } = {}) => offer(def, settings, controls, { first, failed: err => say(`${def.words} was not kept: ${err.message}`, { error: true }) });
+  let used = [];   // (the settings this game uses, below)
+  const setting = (def, { first = false } = {}) => {
+    if (!used.includes(def)) throw new Error(`the player: ${def.name} is not among the settings this game uses`);
+    return offer(def, settings, controls, { first, failed: err => say(`${def.words} was not kept: ${err.message}`, { error: true }) });
+  };
   try {
     if (!disk || !settings) throw new Error('the page gives the player its disk and its settings');
     // the title with its bugs fixed, for one that has such a version (its title.js `fixed`), a setting: its scripts
@@ -119,6 +125,12 @@ export async function play(options) {
       // an engine's own part of the options line that is no setting (Aztlan's preview selector), after the settings
       control(html) { line.insertAdjacentHTML('afterend', html); },
     };
+    // The settings this game uses: the player's own (the speaker, a Commodore 64 game's printer, and the title's version
+    // with its bugs fixed where it has one) and its engine's (its `uses`). The page hears them before the game runs,
+    // to place their controls.
+    const engine = way === 'original' ? await ENGINES.original() : title.own ?? await ENGINES[title.engine]();
+    used = [SOUND, ...(kind === 'c64' ? [PRINTER] : []), ...(way === 'remake' && title?.fixed ? [FIXED] : []), ...(engine.uses?.(g) ?? [])];
+    options.using?.(used);
     // a printer on device 4, for a Commodore 64 game: on unless the setting is off, what it prints drawn below the
     // screen as a sheet of paper, until it is torn off
     if (kind === 'c64') {
@@ -133,7 +145,6 @@ export async function play(options) {
     }
     if (way === 'remake' && title?.fixed) setting(FIXED).on(() => location.reload());
 
-    const engine = way === 'original' ? await ENGINES.original() : title.own ?? await ENGINES[title.engine]();
     const handle = await engine.play(g);
     if (!handle) return;
 

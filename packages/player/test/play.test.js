@@ -350,3 +350,16 @@ test('a text page code as its character: inverse below $80, the low codes as cap
   assert.deepEqual(textChar(0xe1), { ch: 'a', inverse: false });
   assert.deepEqual(textChar(0xff), { ch: ' ', inverse: false });
 });
+
+test('each engine says which settings it uses, from the title and the game\'s data', async () => {
+  const { uses: remake } = await import('@moonbase-machines/player/engines/scenes.js');
+  const { uses: original } = await import('@moonbase-machines/player/engines/original.js');
+  const { CLEAN_TEXT, MONITOR, MINI, VECTORS } = await import('@moonbase-machines/player/declared.js');
+  const names = defs => defs.map(d => d.name);
+  assert.deepEqual(names(remake({ title: { engine: 'vector' }, game: { kind: 'prodos' } })), names([CLEAN_TEXT]), 'a vector title');
+  assert.deepEqual(names(remake({ title: { engine: 'card', text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([CLEAN_TEXT, MONITOR, MINI]), 'a card title with text and a mini view');
+  assert.deepEqual(names(remake({ title: { engine: 'card' }, game: { kind: 'dos33' } })), names([MONITOR]), 'a card title without text');
+  assert.deepEqual(remake({ title: { engine: 'card' }, game: { kind: 'c64' } }), [], 'a Commodore 64 title');
+  assert.deepEqual(names(original({ game: { kind: 'prodos' } })), names([MONITOR, VECTORS]), 'an Apple game');
+  assert.deepEqual(original({ game: { kind: 'c64' } }), [], 'a Commodore 64 game');
+});
