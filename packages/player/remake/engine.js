@@ -122,7 +122,7 @@ export class Engine {
     const [name, label] = this.title.visit[this.visiting];
     this.visiting = undefined;
     if (!this.visited) {
-      this.visited = { name: this.name, pc: here, stack: this.stack, waitingOn: this.waitingOn, asked: this.asked, askMode: this.askMode, regs: [this.a, this.x, this.y, this.n, this.z, this.c, this.v] };
+      this.visited = { name: this.name, pc: here, stack: this.stack, waitingOn: this.waitingOn, waited: this.waited, asked: this.asked, askMode: this.askMode, regs: [this.a, this.x, this.y, this.n, this.z, this.c, this.v] };
       // $4C5D: the screen kept, cleared, and the graphics shown
       this.title.raster?.keepScreen();
       this.inside++; this.emit({ step: 'keep-screen' }); this.inside--;
@@ -140,7 +140,7 @@ export class Engine {
     this.inside++; this.emit({ step: 'put-screen' }); this.inside--;
     this.routines.show(this, [], null);
     this.enter(v.name);
-    Object.assign(this, { pc: v.pc, stack: v.stack, waitingOn: v.waitingOn, asked: v.asked, askMode: v.askMode });
+    Object.assign(this, { pc: v.pc, stack: v.stack, waitingOn: v.waitingOn, waited: v.waited, asked: v.asked, askMode: v.askMode });
     [this.a, this.x, this.y, this.n, this.z, this.c, this.v] = v.regs;
   }
   label(l) { const i = this.program.labels[l]; if (i === undefined) throw new Error(this.name + ': no label ' + l); return i; }
@@ -411,7 +411,7 @@ export class Engine {
       if (!step.run && STATEMENT(step)) this.time(this.program.steps, here, here);
       const r = step.run ? step.run(this, this.program.steps) : this.interpret(step);
       if (r === 'wait' && (step.run ? this.called : !STATEMENT(step))) {
-        this.pc = here;
+        this.pc = here; this.waited = step;
         if (this.visiting !== undefined) { this.startVisit(here); return; }
       }
       return r;
@@ -470,7 +470,10 @@ export class Engine {
     // the call into the toolkit, its JSR's cycles; the routine's own lines count as they run
     // and the loads the lifter took into the step (Engine.cost). A step whose own code, from its address, runs as it
     // is (the title's `native`, as a vector title's on the Original's machine) counts its instructions as they run.
-    if (step && this.timed && step.at !== null && !this.routines.native?.(this, step)) { const c = this.cost(this.program.steps, step.index); this.cycles += c; this.delay += c / CYCLES_PER_MS; }
+    // A step that waited and runs again with the key (`waited`, Engine.exec) made its call when it first ran.
+    const again = step && this.waited === step;
+    this.waited = null;
+    if (step && this.timed && step.at !== null && !again && !this.routines.native?.(this, step)) { const c = this.cost(this.program.steps, step.index); this.cycles += c; this.delay += c / CYCLES_PER_MS; }
     return routine(this, args, step);
   }
 
