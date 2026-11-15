@@ -3,15 +3,14 @@
 // hi-res page for a card title, CardView; a Commodore 64's, C64View; a vector title's pictures and text, View); the
 // settings it acts on (play.js `game.setting`): Clean text, where the view draws clean text (View, and CardView
 // for a title with `text`); the monitor, where the view paints the Apple's screen (CardView); and the mini view,
-// where the page gives one and the title has a place for it. A run's
-// events are drawn one after another, with a moment for each sound and flash, so that what the original took time
-// over takes time here too.
+// where the page gives one and the title has a place for it. It runs on the original's time, on one clock (below).
 import { makeEngine } from '../remake/load.js';
 
 // The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
 import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
-import { CPU } from '@moonbase-machines/mos6502/cpu.js';
+import { pace } from '@moonbase-machines/mos6502/pace.js';
+import { clock } from '../remake/clock.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';
 import { standIn } from '@moonbase-machines/c64/rom.js';
@@ -82,156 +81,92 @@ export async function play(g) {
     view.prompts();
   });
 
-  // the sound: a title that keeps the original's time (a card title's, Engine.time) clicks the speaker as the original
-  // did, and the clicks are played as the emulator plays them (audio.js); a vector title's tones play where its own
-  // sound flag is on, the teacher's setting in the game, as on the original. The player's Sound setting (play.js) is
-  // the speaker, on or off, for both.
-  // A vector title's sounds are played by the game's own sound routine (its title.js map's routine named 'sound'),
-  // from its PART0, which the original loads at $4000.
-  const soundAt = Object.entries(title.map?.routines ?? {}).find(([, name]) => name === 'sound')?.[0];
-  const part0 = drawn === 'vector' && soundAt !== undefined ? Uint8Array.from(atob(Object.values(disk.volumes)[0].PART0.data), c => c.charCodeAt(0)) : null;
-  const speaker = engine.timed || part0 ? new Speaker() : null;
+  // The sound: every Remake keeps the original's time (Engine.time), and its speaker's clicks come at their cycles, as
+  // the original's did, played as the emulator plays them (audio.js). A vector title's routines click it on the
+  // original's machine (remake/toolkit.js), where its own sound flag is on, the teacher's setting in the game. The
+  // player's Sound setting (play.js) is the speaker, on or off. At a pace other than the original's nothing is heard.
+  const speaker = engine.timed ? new Speaker() : null;
   let sounding = true;
-  const hear = () => { if (!c64) speaker?.feed(sounding ? engine.clicks : [], engine.cycles); engine.clicks.length = 0; };
-  const V = title.map?.vars ?? { sound: 0, soundOn: 0 };
-  let audio = null;
-  const tone = (from, to, ms) => {
-    if (!sounding || !(engine.mem[V.sound] & V.soundOn)) return;
-    audio ??= new AudioContext();
-    const o = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime;
-    o.type = 'square'; o.frequency.setValueAtTime(from, t); o.frequency.linearRampToValueAtTime(to, t + ms / 1000);
-    gain.gain.setValueAtTime(0.06, t); gain.gain.linearRampToValueAtTime(0, t + ms / 1000);
-    o.connect(gain).connect(audio.destination); o.start(t); o.stop(t + ms / 1000);
+  const hear = heard => {
+    if (!c64) { if (heard) speaker?.feed(sounding ? engine.clicks : [], engine.cycles); else speaker?.skip(engine.cycles); }
+    engine.clicks.length = 0;
   };
-  const pitch = p => 16000 / (p + 8);
-  // A sound step, run as the original runs it: the sound routine on a 6502, in a copy of the game's memory with PART0
-  // at $4000, called by a JSR with the step's five bytes after it, as the scene's code calls it. Each access to the
-  // speaker ($C030 to $C03F) is a click at its cycle, and the routine's cycles are the sound's length. Returns them.
-  let played = 0;   // (the cycles of the sounds played so far: the speaker's clock)
-  const playSound = words => {
-    const mem = engine.mem.slice(), at = Number(soundAt), CALL = 0x0300, BACK = CALL + 8, clicks = [];
-    mem.set(part0, 0x4000);
-    mem.set([0x20, at & 0xff, at >> 8, ...words.split(' ').map(h => parseInt(h, 16))], CALL);
-    let cycles = 0;
-    const click = a => { if ((a & 0xfff0) === 0xc030) { clicks.push(played + cycles); return true; } return false; };
-    const cpu = new CPU({ read: a => (click(a), mem[a]), write: (a, v) => { if (!click(a)) mem[a] = v; } });
-    cpu.pc = CALL;
-    while (cpu.pc !== BACK && cycles < 10_000_000) cycles += cpu.step();
-    played += cycles;
-    if (sounding) speaker?.feed(clicks, played);
-    return cycles;
+  // A Commodore 64's SID, its writes of a frame played a frame at a time, as the emulator plays them
+  // (engines/original.js), from the page's clock: after a pause, a tab in the background, the sound goes on from now, a
+  // quarter of a second at most, and no wave the length of the pause is made.
+  let sid = null, from = null, sent = 0;
+  const playSid = heard => {
+    if (speaker?.node && sounding && heard) {
+      sid ??= new SID(speaker.rate); from ??= performance.now();
+      let n = Math.floor((performance.now() - from) / 1000 * speaker.rate) - sent;
+      const most = Math.floor(speaker.rate / 4);
+      if (n > most) { sent += n - most; n = most; }
+      if (n > 0) { const wave = sid.render(n, engine.sid.map(([, r, v]) => [0, r, v])); sent += n; speaker.node.port.postMessage(wave, [wave.buffer]); }
+    }
+    engine.sid.length = 0;
   };
 
-  // how long each step takes to be seen or heard, in milliseconds
-  const PACE = { beep: 60, 'flash-box': 60, flash: 250, object: 30, 'object-keep': 30 };
-  let drawing = false, quick = false;
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  async function runs() {
-    if (drawing) return;
-    drawing = true;
+  // An event drawn, as the view snapshot it when it happened
+  const draw = e => { history.push(e); view.apply(e); };
+
+  // One clock for the Remake, as for the Original (@moonbase-machines/mos6502/pace.js): sixty frames a second against
+  // the page's clock, a short hitch caught up and a long pause dropped. Each frame runs the engine for a frame of the
+  // original's time at the page's pace (remake/clock.js); then what it did is drawn and its clicks are played, at
+  // pace 1 only. The computer's own time to do that comes out of the frame, so that the game keeps the original's time
+  // on a fast computer and a slow one alike. A Commodore 64 title's game goes on as it waits, on the clock, as the
+  // original's did: its raster and its interrupt at the time they come (card.js), the screen painted from its memory
+  // each frame.
+  const time = clock(engine, { pace: g.pace, goesOn: c64 });
+  let stopped = false, said = null;
+  const status = s => { if (s !== said) say(said = s); };
+  function frame() {
+    if (stopped || engine.ended) return;
     try {
-      for (;;) {
-        const r = engine.run();
-        hear();
-        // the original took time here, a disk's read or a wait it counted out: the screen as it
-        // is, for that long (card.js)
-        if (r === 'frame') {
-          for (const e of queue.splice(0)) { history.push(e); view.apply(e); }
-          view.prompts(); if (!quick && g.pace()) await sleep(engine.delay * g.pace()); engine.delay = 0;
-          continue;
-        }
-        engine.delay = 0;
-        while (queue.length) {
-          const e = queue.shift();
-          history.push(e);
-          view.apply(e);
-          if (quick) continue;   // (at full speed: no sound, no wait)
-          if (e.step === 'sound' && part0) { const cycles = playSound(e.words); if (g.pace()) await sleep(cycles / 1020.484 * g.pace()); continue; }
-          if (e.step === 'beep') tone(pitch(e.a & 31) * 2, pitch(e.a & 31) * 2, 50);
-          if (!g.pace()) continue;   // (none of the original's waits: its sounds still)
-          if (PACE[e.step]) await sleep(PACE[e.step] * g.pace());
-          if (e.step === 'pause') await sleep(e.ms * g.pace());   // a delay the original counted out
-        }
-        view.prompts();
-        say(r === 'end' ? 'The end.' : 'Waiting for a key.');
-        if (!engine.keys.length || r === 'end') break;
-      }
-    } catch (err) { fail(err); }
-    drawing = false;
+      // a key of ?keys when a Commodore 64 game waits for one, two seconds at least after the last, as a player
+      // would press them
+      if (c64 && engine.clock.ahead.length && engine.idle > (engine.routines.polls ?? 200) && !engine.keys.length && ++engine.clock.since > 120) { engine.press(engine.clock.ahead.shift()); engine.clock.since = 0; }
+      const { ran, heard } = time.frame();
+      if (!ran) return;
+      hear(heard);
+      if (c64) { queue.length = 0; playSid(heard); } else for (const q of queue.splice(0)) draw(q);
+      view.prompts();
+      status(engine.ended ? 'The end.' : time.waiting ? 'Waiting for a key.' : 'Playing.');
+    } catch (err) { stopped = true; fail(err); }
   }
 
-  const press = k => { engine.press(k); audio?.resume(); speaker?.start(); if (!c64) runs(); };
-  // A game that goes on without waiting for keys, as Nature Park's truck: each turn of its loop is
-  // a step `tick`, which takes a key or none. A turn passes every 100 milliseconds, as the
-  // original's took, with the key pressed since the last or still held, as the Apple's keyboard
-  // told the game a key was down.
-  const ticking = () => engine.waitingOn?.words?.[0] === 'tick';
-  let held = null, tapped = null;
+  const press = k => { engine.press(k); speaker?.start(); };
   svg.addEventListener('click', e => { const key = e.target.closest('.key')?.dataset.key; if (key) press(+key); });
-
-  // A Commodore 64 title runs on the clock, as the original did, waiting for a key or not: a
-  // sixtieth of a second of the original's cycles at a time (the engine's run stops at each 16 ms of
-  // them), its raster and its interrupt at the time they come (card.js), and the screen
-  // painted after each. And the SID, its writes played a sixtieth of a second at a time, as the
-  // emulator plays a frame's (engines/original.js).
-  function clock() {
-    engine.sid = []; engine.clock = { irq: 0, ahead: [], since: 0 };
-    let sid = null, from = null, sent = 0, stopped = false;
-    say('Playing.');
-    setInterval(() => {
-      engine.delay -= 1000 / 60;   // a load's time, or the last run's
-      if (!stopped && !engine.ended && engine.delay < 16) {
-        engine.delay = Math.max(0, engine.delay);
-        // a key of ?keys when the game is waiting for one, two seconds at least after the last, as
-        // a player would press them (a wait the game counts out goes on by itself on the clock)
-        if (engine.clock.ahead.length && engine.idle > (engine.routines.polls ?? 200) && !engine.keys.length && ++engine.clock.since > 120) { engine.press(engine.clock.ahead.shift()); engine.clock.since = 0; }
-        try { engine.run(); queue.length = 0; view.prompts(); } catch (err) { stopped = true; fail(err); }
-        if (engine.ended) say('The end.');
-      }
-      if (speaker?.node && sounding) {
-        sid ??= new SID(speaker.rate); from ??= performance.now();
-        // (a quarter of a second at most: after a pause, a tab in the background, the sound goes on from now, not from
-        // where it stopped, and no wave the length of the pause is made)
-        let n = Math.floor((performance.now() - from) / 1000 * speaker.rate) - sent;
-        const most = Math.floor(speaker.rate / 4);
-        if (n > most) { sent += n - most; n = most; }
-        if (n > 0) { const wave = sid.render(n, engine.sid.map(([, r, v]) => [0, r, v])); sent += n; speaker.node.port.postMessage(wave, [wave.buffer]); }
-      }
-      engine.sid.length = 0;
-    }, 1000 / 60);
-  }
-  setInterval(() => {
-    if (!ticking() || drawing || engine.keys.length) return;
-    const k = tapped ?? held ?? -1; tapped = null;
-    press(k);
-  }, 100);
 
   return {
     engine, press,
-    run() { svg.focus(); if (c64) clock(); else runs(); },
+    run() {
+      svg.focus();
+      if (c64) { engine.sid = []; engine.clock = { irq: 0, ahead: [], since: 0 }; }
+      status('Playing.');
+      pace(frame, 60);
+    },
     // the keys the player gives (play.js): a turn's key while the game ticks; a Commodore 64's held in its keyboard's
     // matrix, which its KERNAL scans and repeats as long as it is held, as the original's did
     // (@moonbase-machines/c64/kernal.js), a character typed only with shift into the buffer; else pressed
     key(e, k) {
       if (e.type === 'keyup') {
-        held = null;
+        time.keys.held = null;
         const h = engine.clock?.held;
         if (h?.key === e.key) { if (h.seen) engine.clock.held = null; else h.up = true; }
         return;
       }
       if (k === undefined) return;
       e.preventDefault();
-      if (ticking()) { tapped = held = k; return; }
+      if (time.ticking()) { time.keys.tapped = time.keys.held = k; return; }
       const m = c64 && !e.ctrlKey && matrixOf(k);
-      if (m) { if (!e.repeat) { engine.clock.held = { ...m, key: e.key }; audio?.resume(); speaker?.start(); } return; }
+      if (m) { if (!e.repeat) { engine.clock.held = { ...m, key: e.key }; speaker?.start(); } return; }
       if (!e.repeat) press(k);
     },
     // ?keys at the start: a Commodore 64's into the KERNAL's buffer on the clock, as a player would press them; else
     // pressed
     keys(list) { if (c64) engine.clock.ahead.push(...list); else for (const k of list) press(k); },
-    start() { audio?.resume(); speaker?.start(); },
+    start() { speaker?.start(); },
     sound(on) { sounding = on; },   // (the player's speaker: play.js)
-    quick(on) { quick = on; },
     // A route the page gives (`route`, a workshop's pilots' route), played first as the pilots play it, each key when
     // the game waits for one, off the clock, so that it goes where it went on both sides; then the game goes on as
     // usual
@@ -241,10 +176,11 @@ export async function play(g) {
       say('Playing the route ' + name + '.');
       // (on a Commodore 64 a key behind the one pressed goes into the KERNAL's buffer, as the pilots hold a key)
       const side = { press: k => engine.press(k), also: k => { const m = engine.mem, put = v => { if (m[0xc6] < 10) { m[0x277 + m[0xc6]] = v; m[0xc6]++; } }; if (engine.keys.length) put(engine.keys.shift()); put(k); } };
-      const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'frame'); if (c64) queue.length = 0; else for (const e of queue.splice(0)) { history.push(e); view.apply(e); } };
+      const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'frame'); if (c64) queue.length = 0; else for (const q of queue.splice(0)) draw(q); };
       go();
       for (const [i, [k]] of expand(route.keys).entries()) { give(side, k, c64 ? petscii : undefined); engine.polls = pollsAt(route, i + 1) ?? undefined; go(); }
       engine.polls = undefined; view.prompts();
+      hear(false);   // (the route's sounds, played off the clock, unheard)
     },
   };
 }

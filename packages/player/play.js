@@ -23,11 +23,11 @@
 //     words        the page's words the player shows: { printer: { line, print, tear } }
 //     screen       [width, height], the screen's shape in its own dots where the page draws its own over it
 //   and what a page that follows the game asks:
-//     watch        called with { engine, press, quick } once the game is ready: its engine (where it has one), a key
-//                  pressed as the player presses one, and the game at full speed or not
+//     watch        called with { engine, press } once the game is ready: its engine (where it has one), and a key
+//                  pressed as the player presses one
 //     claim        k => true to take a key of the player's before the game does
-//     pace         how much of the original's waits: 1 all (the default), 0 none, between a part of each; a number or
-//                  a function, read at each wait
+//     pace         a Remake's time against the original's: 1 the original's (the default), a half twice as fast, 0
+//                  none, the game running until it waits; heard only at 1. A number or a function, read each frame
 //   and what only a workshop has, given by its pages, never looked for here:
 //     keys         keys to press at the start, by name (space, return, left...), to go straight to a scene
 //     route        a route to play first, { name, route, keys }: its keys, and the pilots' key handling
@@ -46,15 +46,14 @@
 // exports `play(game)`: given `game`, the player's own for it (below), it declares the settings it acts on
 // (`game.setting(declaration)`, settings.js, each shown only so), makes what it draws on the stage and returns
 // its handle, or nothing where it cannot start (and has said why in the status):
-//   { run(), press(k)?, key(e, k)?, keys(list)?, route(route)?, start()?, sound(on)?, quick(on)?,
+//   { run(), press(k)?, key(e, k)?, keys(list)?, route(route)?, start()?, sound(on)?,
 //     demonstrate(steps)?, engine?, diskImage()? }
 // run() starts it; press(k) a key, the machine's code (none for a title of its own engine with no machine's keys,
 // which reads the keyboard itself); key(e, k), for an engine that reads the keyboard itself, each
 // keydown and keyup with its code (undefined where the machine has none); keys(list), the page's `keys` at the start;
 // route, the page's route; start(), at the player's first gesture (sound may start only then); sound(on), the
-// player's speaker on or off (the Sound setting; a game's own sound setting stays the game's); quick(on) the game at
-// full speed; demonstrate(steps), a demonstration's steps typed into the game; engine, what `watch` gives a page;
-// diskImage(), the disk to download.
+// player's speaker on or off (the Sound setting; a game's own sound setting stays the game's); demonstrate(steps), a
+// demonstration's steps typed into the game; engine, what `watch` gives a page; diskImage(), the disk to download.
 import { titleOf, loadTitle, read } from './remake/load.js';
 import { savesFor } from './saves.js';
 import { code, named } from './keys.js';
@@ -177,7 +176,7 @@ export async function play(options) {
       $('disk').before(button);
     }
     // a page that follows the game: its engine, a key pressed as the player presses one, the game at full speed
-    options.watch?.({ engine: handle.engine, press: k => { handle.start?.(); handle.press?.(k); }, quick: on => handle.quick?.(on) });
+    options.watch?.({ engine: handle.engine, press: k => { handle.start?.(); handle.press?.(k); } });
     // a route the page gives, played first; then the game; then the page's keys, to go straight to a scene
     if (options.route) {
       if (!handle.route) throw new Error('a route cannot be played on the ' + way);

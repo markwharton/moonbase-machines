@@ -59,4 +59,6 @@ export class Speaker {
     this.from += n * perSample;
     this.node.port.postMessage(wave, [wave.buffer]);
   }
+  // the cycles up to `cycles` not heard, as at a pace other than the original's: the sound goes on from there
+  skip(cycles) { if (this.node) this.from = cycles; }
 }

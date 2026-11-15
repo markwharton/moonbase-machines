@@ -114,8 +114,16 @@ The scripts are the same for every title. What differs is the routines their ste
 
 A title's code sits in the remake's memory where it came from, so the engine counts the time the original took
 (`Engine.time`). Each line costs its instruction's cycles, read from the opcode at its address, and a branch taken
-costs one more. A click of the speaker is kept at its cycle and played as the emulator plays it (`../audio.js`), so
-the remake runs at the original's speed and sounds as it did.
+costs one more. A vector title's routines count their own cycles on the machine (`toolkit.js`), and a read from its
+disk takes the time the drive took. A click of the speaker is kept at its cycle and played as the emulator plays it
+(`../audio.js`).
+
+The page runs the engine on one clock (`clock.js`, sixty frames a second, `../engines/scenes.js`). Each frame, the
+engine runs a sixtieth of a second of the original's time and stops (`'frame'`), and the page draws what it did and
+plays its clicks. The computer's own time comes out of the frame, so the game keeps the original's time on a fast
+computer and on a slow one. A wait for a key is the player's time, and no frame owes it. The page's `pace` sets the
+clock's rate: 1 is the original's, a half is twice as fast, and 0 runs the game until it waits. The sound plays at
+pace 1 only.
 
 ## Bugs fixed
 
@@ -160,6 +168,7 @@ its code and written again routine for routine, playing the game's data as the o
 | `programs.js` | a BASIC program made from the disk, BASIC's text or Blitz!'s code, where the driver says a script is one |
 | `load.js` | loads a title's folder, its scenes compiled or its programs made, and makes its engine |
 | `events.js` | what each step is as an event, in the same words for the original and the remake |
+| `clock.js` | the page's clock: a frame of the original's time at a time, at the page's pace |
 | `lift.js` | the lifter: a file's 6502 walked from its entries into a scene script; the card engine uses it to lift code a title's scenes miss, as it runs |
 | `card.js`, `cards.js` | the card engine's routines, and what it knows of every title it plays |
 | `vector.js`, `toolkit.js`, `layout.js`, `raster.js` | the vector engine's routines; its toolkit on the Original's machine; its text laid out as the engine laid it out; the original's screen dot for dot, for the view |
