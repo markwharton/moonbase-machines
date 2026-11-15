@@ -7,7 +7,8 @@
 // steps are the engine's work, which the title's routines do: a text, a picture, a wait.
 //
 //   const e = new Engine({ routines, scripts, start })
-//   e.run()          runs until the title waits for a key: 'idle', or 'end'
+//   e.run()          runs until the title waits for a key: 'idle', or 'end'; for a timed title, 'frame' where it
+//                    has run a frame of the original's time (`delay`, in milliseconds), to go on with the next run
 //   e.press(key)     a key, as a character code; the waiting step takes it on the next run
 //   e.on(event => ...)
 //   e.onKey(key => ...)   each key as the title's keyboard takes it (key()), apart from the events, which stay the
@@ -379,10 +380,10 @@ export class Engine {
   // run until the title waits for a key, or `limit` steps: ten million, as Detect-A-Pet's toy
   // shop turns a screen over seven times, a byte at a time, in its own lifted code
   run(limit = 1e7) {
-    // the keyboard read with no key, in this run (`io`): a run that goes on after the time the
-    // original took ('pace') goes on counting, as the machine's one run would
-    if (!this.pacing) this.idle = 0;
-    this.pacing = false;
+    // the keyboard read with no key, in this run (`io`): a run that goes on from a frame's stop
+    // ('frame') goes on counting, as the machine's one run would
+    if (!this.framed) this.idle = 0;
+    this.framed = false;
     this.delay ??= 0;
     for (let i = 0; i < limit; i++) {
       if (this.ended) return 'end';
@@ -393,9 +394,10 @@ export class Engine {
       const r = this.exec(step);
       if (r === 'wait') return 'idle';
       if (this.polled) { this.polled = false; return 'idle'; }
-      // the time the original took, a disk's read or a wait it counted out, in milliseconds: a
+      // the time the original took, its cycles and its disk's reads, in milliseconds (`delay`): a
       // frame's worth or more stops the run, for the page to show the screen and take the time
-      if (this.delay >= 16) { this.pacing = true; return 'pace'; }
+      // (engines/scenes.js)
+      if (this.delay >= 16) { this.framed = true; return 'frame'; }
     }
     return 'steps';
   }

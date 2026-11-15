@@ -135,7 +135,7 @@ export async function play(g) {
         hear();
         // the original took time here, a disk's read or a wait it counted out: the screen as it
         // is, for that long (card.js)
-        if (r === 'pace') {
+        if (r === 'frame') {
           for (const e of queue.splice(0)) { history.push(e); view.apply(e); }
           view.prompts(); if (!quick && g.pace()) await sleep(engine.delay * g.pace()); engine.delay = 0;
           continue;
@@ -241,7 +241,7 @@ export async function play(g) {
       say('Playing the route ' + name + '.');
       // (on a Commodore 64 a key behind the one pressed goes into the KERNAL's buffer, as the pilots hold a key)
       const side = { press: k => engine.press(k), also: k => { const m = engine.mem, put = v => { if (m[0xc6] < 10) { m[0x277 + m[0xc6]] = v; m[0xc6]++; } }; if (engine.keys.length) put(engine.keys.shift()); put(k); } };
-      const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'pace'); if (c64) queue.length = 0; else for (const e of queue.splice(0)) { history.push(e); view.apply(e); } };
+      const go = () => { let r; do { engine.delay = 0; r = engine.run(); } while (r === 'frame'); if (c64) queue.length = 0; else for (const e of queue.splice(0)) { history.push(e); view.apply(e); } };
       go();
       for (const [i, [k]] of expand(route.keys).entries()) { give(side, k, c64 ? petscii : undefined); engine.polls = pollsAt(route, i + 1) ?? undefined; go(); }
       engine.polls = undefined; view.prompts();
