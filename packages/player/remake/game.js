@@ -27,6 +27,10 @@
 // the routine ends. A title with no `warp` plays at the original's speed throughout. A read from the disk is a step
 // named `disk`: at warp it arrives at once, and otherwise the page waits the time the drive took.
 //
+// A game may pace itself by its drawing: a loop that draws two pictures in turn moves at the speed they are drawn. The
+// title's map names such a stretch of the game's code as a step of the view's (its `view`, with `until`), and the title
+// does not warp that step. While it runs nothing warps, so the stretch takes the original's time.
+//
 // A wait for a key is the player's time. A routine of the toolkit's that waits for a key runs flat out, so that what it
 // draws to ask is shown at once and its sound plays out while the player decides. When it returns, the time it took
 // since its last key is owed: the game is going on, and that time is the game's. A title's own routine that waits
@@ -91,6 +95,8 @@ export class Game {
     this.untimed = []; this.turning = false; this.framed = false; this.polled = null;
     // the routine running that waits for a key, with the cycle of its start or of its last key
     this.waiter = null;
+    // the view's step running that keeps its time: nothing inside it warps
+    this.keeping = null;
     // the last key pressed; whether the game has given an event yet; and whether its loader's splash has been shown
     this.key = null; this.begun = false; this.splashed = false;
     this.took = new WeakMap();
@@ -104,13 +110,16 @@ export class Game {
     this.observer = observe(m, title.map, {
       kind: title.engine, game: title.disk, seed: () => title.seed, view: true,
       emit: event => { this.begun = true; this.emit(event); },
-      enter: event => {
+      enter: (event, span) => {
         starts.set(event, { from: m.cpu.cycles, warp: clock.warp });
         // a routine that waits for a key ends the turns of a game's own loop
         if (this.steps[event.step]?.waits) this.turning = false;
         if (!this.waiter && kind.frees?.(event)) this.waiter = { event, from: m.cpu.cycles };
-        // a step inside one that warps warps with it
-        clock.warp = clock.warp || this.warps(event);
+        // A step inside one that warps warps with it. A step of the view's own that does not warp keeps its time, and
+        // so does every step inside it.
+        const warps = this.warps(event);
+        if (span && !warps && !clock.warp) this.keeping = event;
+        clock.warp = clock.warp || warps && !this.keeping;
         kind.enter?.(event);
       },
       leave: event => {
@@ -124,11 +133,12 @@ export class Game {
           if (!clock.free) clock.owed -= (m.cpu.cycles - this.waiter.from) / CYCLES_PER_MS;
           this.waiter = null;
         }
+        if (this.keeping === event) this.keeping = null;
         // a turn has been taken: the game is in its own loop until it next waits for a key
         if (this.steps[event.step]?.turn) this.turning = true;
         kind.leave?.(event);
       },
-      left: () => { this.turning = false; this.waiter = null; clock.warp = false; },
+      left: () => { this.turning = false; this.waiter = null; this.keeping = null; clock.warp = false; },
       tap: kind.tap,
     });
   }

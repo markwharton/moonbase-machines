@@ -313,6 +313,9 @@ whichbox: LDA $C000
           BPL whichbox
           STA $C010
           RTS
+wave:     JSR fill
+          JSR fill
+waved:    RTS
 `;
 const vectorGame = ({ splash = false, scene = ASKS, warp, clock } = {}) => {
   const program = assemble(vectorSource({ splash, scene })), a = name => program.symbols.get(name);
@@ -325,6 +328,8 @@ const vectorGame = ({ splash = false, scene = ASKS, warp, clock } = {}) => {
     volume: 'GAME', vars: { zero: 0 }, routines, loads: { PROB: 0x6000 },
     problems: { 1: { [a('edges')]: 'edges', [a('whichbox')]: 'which-box' } }, open: ['edges'],
     steps: { tick: { gives: 'a', turn: true }, 'which-box': { gives: 'xy', waits: true } },
+    // the problem's own code that draws twice, as one step of the view's
+    view: { PROB1: { [a('wave')]: { step: 'wave', until: a('waved') } } },
     ...splash ? { splash: true } : {},
   };
   const game = new Game({ engine: 'vector', disk: disk(image.slice(0x2000, a('sysend')), files), map, warp }, clock ? { clock } : {});
@@ -435,6 +440,38 @@ test('a warped routine that calls another warped routine is one stretch at warp'
   const [from, to] = warped[0];
   assert.equal((to - from) / CYCLES_PER_MS, game.took.get(events.find(e => e.step === 'edges')));
   near(clock.owed, FRAME - ((waits[0] - start) - (to - from)) / CYCLES_PER_MS);
+});
+
+// A stretch of the problem's own code that draws twice, then a drawing after it.
+const SPAN = `
+          JSR wave
+          JSR fill
+          JSR wait
+${QUIT}`;
+
+test('nothing warps inside a view\'s step that the title does not warp, and a step after it warps again', () => {
+  const clock = aFrame(), { game, events, load } = vectorGame({ scene: SPAN, clock, warp: step => step.step === 'fill-rows' });
+  const fills = startsOf(game, 'fill-rows'), waits = startsOf(game, 'wait');
+  load();
+  const start = game.cycles;
+  assert.equal(game.run(), 'idle');
+  assert.deepEqual(events.filter(e => e.step === 'wave'), [{ step: 'wave', inside: true }]);
+  assert.equal(fills.length, 3);
+  // the two fills of the wave spent their time, and the fill after it ran at warp
+  const warped = game.untimed.filter(([, to]) => to <= waits[0]);
+  assert.deepEqual(warped.map(([from]) => from), [fills[2]]);
+  const [from, to] = warped[0];
+  near(clock.owed, FRAME - ((waits[0] - start) - (to - from)) / CYCLES_PER_MS);
+});
+
+test('a view\'s step that the title warps is one stretch at warp', () => {
+  const clock = aFrame(), { game, load } = vectorGame({ scene: SPAN, clock, warp: step => step.step === 'wave' });
+  const fills = startsOf(game, 'fill-rows'), waits = startsOf(game, 'wait');
+  load();
+  assert.equal(game.run(), 'idle');
+  const warped = game.untimed.filter(([, to]) => to <= waits[0]);
+  assert.equal(warped.length, 1);
+  assert.ok(warped[0][0] < fills[0] && warped[0][1] > fills[1] && warped[0][1] < fills[2], 'the stretch is the wave\'s');
 });
 
 test('a vector game runs in auxiliary memory', () => {

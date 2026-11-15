@@ -15,8 +15,9 @@
 //     emit       event => {}, given each event in order
 //     view       true to be given the view's own events too, each marked `inside`: they are no steps of the
 //                transcript, and a view draws them (the vector toolkit's rules say which they are)
-//     enter      event => {}, given a routine's event as it starts: the outermost routine's, and with `view` each
-//                routine given to the view inside it, and a view's step that runs for a while
+//     enter      (event, span) => {}, given a routine's event as it starts: the outermost routine's, and with `view`
+//                each routine given to the view inside it, and a view's step that runs for a while. `span` is true
+//                for the last: a stretch of the game's own code that the map names as one step
 //     leave      event => {}, given the same event as the routine or the step ends
 //     left       () => {}, called when the game leaves every routine without returning
 //     tap        (name, c) => {}, given every call of the game's own into a routine of the map, however deep
@@ -192,7 +193,7 @@ function vector(s) {
       chain(m, +at, () => {
         if (!there() || given) return false;
         const e = inside(event);
-        if (until !== undefined) { given = e; running.add(done); s.options.enter?.(e); }
+        if (until !== undefined) { given = e; running.add(done); s.options.enter?.(e, true); }
         return false;
       });
       if (until !== undefined) chain(m, until, () => { done(); return false; });
