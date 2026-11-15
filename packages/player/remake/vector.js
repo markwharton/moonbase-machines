@@ -331,7 +331,8 @@ export function vectorRoutines(title) {
       seed = (seed * 259) & 0xffff;
       e.mem[at] = seed & 0xff; e.mem[at + 1] = seed >> 8; e.mem[used] = n;
       const q = n ? Math.floor(0xffff / n) : 0xffff;
-      e.a = Math.floor(seed / q) & 0xff; e.c = 0;
+      // (the number given by PLA, which sets N and Z from it, and the carry clear: $612B, $5681)
+      e.a = e.flags(Math.floor(seed / q) & 0xff); e.c = 0;
       e.emit(result('random', e));
     },
 
