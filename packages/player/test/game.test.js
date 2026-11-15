@@ -179,6 +179,70 @@ test('a card game\'s routine that waits spends the clock like any other code', (
   nearWait(clock.owed, FRAME - (game.cycles - start) / CYCLES_PER_MS);
 });
 
+// A card game whose scene's own loop takes a turn at `turn`, while the scene is in memory at $AD00, and then waits.
+const TURN = assemble(`
+*= $2000
+turn:     LDA $C000
+          STA $C010
+          LDY #2
+          JSR take
+${QUIT}
+take:     LDA $C000
+          BPL take
+          STA $C010
+          AND #$7F
+          RTS
+`);
+const SCENE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+test('a card game stops at a turn of its own loop, and goes on with no key', () => {
+  const a = name => TURN.symbols.get(name);
+  const files = { SCENE: { type: 'BIN', aux: 0xad00, size: SCENE.length, data: b64(SCENE) } };
+  const map = { routines: { [a('take')]: 'take' }, ticks: [{ at: a('turn'), scene: 'SCENE' }] };
+  const game = new Game({ engine: 'card', disk: disk(TURN.bytes, files), map });
+  game.m.main.set(SCENE, 0xad00);
+  const events = [];
+  game.on(e => events.push(e));
+  assert.equal(game.run(), 'idle');
+  assert.deepEqual(game.waitingOn, { words: ['tick'] });
+  assert.deepEqual(events, [{ step: 'tick' }]);
+  game.press(-1);
+  assert.equal(game.run(), 'idle');
+  assert.deepEqual(game.waitingOn, { words: ['take'] });
+  assert.deepEqual(events, [{ step: 'tick' }, { step: 'take', y: 2 }]);
+});
+
+// A card game that calls the Monitor's WAIT, which Moonbase's ROM answers with a hook that counts its cycles, then
+// waits for a key.
+const PAUSE = assemble(`
+*= $2000
+          LDA #$40
+          JSR $FCA8
+          LDY #2
+          JSR take
+${QUIT}
+take:     LDA $C000
+          BPL take
+          STA $C010
+          AND #$7F
+          RTS
+`);
+
+test('a routine answered by a hook that counts its own cycles spends all of its time', () => {
+  const map = { routines: { 0xfca8: 'pause', [PAUSE.symbols.get('take')]: 'take' } };
+  const clock = new Clock();
+  clock.tick(50);
+  const game = new Game({ engine: 'card', disk: disk(PAUSE.bytes), map }, { clock });
+  const events = [];
+  game.on(e => events.push(e));
+  const start = game.cycles;
+  assert.equal(game.run(), 'idle');
+  assert.deepEqual(events[0], { step: 'pause', a: 0x40 });
+  // WAIT with A = $40 takes 11,117 cycles with its JSR and RTS; the routine's own time is all but the JSR's 6
+  assert.equal(Math.round(game.took.get(events[0]) * CYCLES_PER_MS), 11117 - 6);
+  nearWait(clock.owed, 50 - (game.cycles - start) / CYCLES_PER_MS);
+});
+
 // A vector game. Its system file turns on auxiliary memory and the alternate zero page, then jumps to the toolkit at
 // $4000; with `splash` it waits for a key first. The toolkit begins with a jump to the scene. The ask draws the cap of
 // a key it wants, waits for the choice, draws RETURN's cap, and waits for RETURN. The tick is a turn of the game's own

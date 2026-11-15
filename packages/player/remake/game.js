@@ -175,7 +175,10 @@ export class Game {
       }
       const pc = m.cpu.pc;
       if (pc >= 0xd000 && !m.sw.lcRead && !m.cpu.hooks.has(pc)) { m.halted = 'ROM $' + pc.toString(16); break; }
-      const cycles = m.cpu.step();
+      // (the time the instruction took is the counter's change: a ROM routine answered by a hook counts its own time)
+      const before = m.cpu.cycles;
+      m.cpu.step();
+      const cycles = m.cpu.cycles - before;
       // `polled` is the cycle of the first poll of the keyboard that found no key, while the polls go on.
       if (!m.idle) this.polled = null; else this.polled ??= m.cpu.cycles;
       if (m.idle > IDLE) {
@@ -198,7 +201,7 @@ export class Game {
     const o = this.observer, splash = !this.begun && this.kind.splash;
     if (splash && !this.splashed) { this.splashed = true; this.emit({ step: 'splash', inside: true }); }
     // (a routine with no step of its own, one whose name starts with a dot, waits as a loop of the game's own does)
-    const name = o.depth > 0 && o.running ? o.running : splash ? 'splash' : 'read-key';
+    const name = o.ticking() ? 'tick' : o.depth > 0 && o.running ? o.running : splash ? 'splash' : 'read-key';
     if (name !== 'tick') this.turning = false;
     // the polls that found the wait are no part of the game's sound
     const from = o.since?.() ?? this.polled;

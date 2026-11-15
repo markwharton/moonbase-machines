@@ -60,6 +60,8 @@ scrolls:  JSR scroll
           JMP done
 randoms:  JSR random
           JMP done
+ticks:    JSR tick
+          JMP done
 done:     JMP done
 
 *= $4000
@@ -101,6 +103,8 @@ show:     JSR rect
 flash:    JMP multiply
 random:   LDA #7
           RTS
+tick:     LDA $10
+          RTS
 kitend:
 
 *= $6000
@@ -132,7 +136,7 @@ const vectorTitle = (options = {}) => {
     volume: 'TEST', vars: { zero: 0 }, menu: a('menu'), loads: { PROB: 0x6000 }, seed: { at: 0x20, used: 0x22 },
     routines: {
       [a('box')]: 'box', [a('rect')]: 'rectangle', [a('multiply')]: 'multiply', [a('text')]: 'text', [a('readkey')]: 'read-key', [a('wait')]: 'wait',
-      [a('show')]: 'show', [a('flash')]: 'flash', [a('random')]: 'random',
+      [a('show')]: 'show', [a('flash')]: 'flash', [a('random')]: 'random', [a('tick')]: 'tick',
     },
     problems: { 1: { [a('shut')]: 'demo', [a('opened')]: 'edges', [a('jumper')]: 'jump' } },
     open: ['edges', 'jump'],
@@ -283,8 +287,22 @@ test('with no seed, the random routine\'s seed is the game\'s own', () => {
   assert.deepEqual([m.mem[0x20], m.mem[0x21]], [0, 0]);
 });
 
+test('a vector title is ticking while a turn of its own loop runs', () => {
+  const { m, o, a } = vectorTitle();
+  assert.equal(o.ticking(), false);
+  m.cpu.pc = a('ticks'); m.cpu.sp = 0xff;
+  until(m, a('tick') + 2);
+  assert.equal(o.ticking(), true);
+  until(m, a('done'));
+  assert.equal(o.ticking(), false);
+});
+
 // A card title's scene and toolkit. The print routine returns past its text, which ends in a zero. The drop routine
-// calls the restart, which goes on as the game and never returns. The key reader gives a key at once.
+// calls the restart, which goes on as the game and never returns. The key reader gives a key at once. The wipe calls
+// the take. The arrow runs on into the effect. The action cards call an entry of a table of jumps, which goes on to
+// the routine's own code. The text card jumps to an entry of another library's table, and the picture jumps to that
+// library's routine itself. The stir calls the take. A turn of the scene's own loop stops at `turn`, while the scene's
+// first bytes are at $AD00.
 const CARD = assemble(`
 *= $0300
 calls:    LDA #4
@@ -323,12 +341,57 @@ restart:  LDX #$FF
           LDY #2
           JSR take
           JMP done
+wipes:    JSR wipe
+          JMP done
+wipe:     LDY #5
+          JSR take
+          RTS
+arrows:   JSR arrow
+          JMP done
+arrow:    LDA #2
+effect:   RTS
+cards:    JSR actions
+          JMP done
+actions:  LDA #7
+          JSR entry
+          RTS
+entry:    JMP body
+body:     RTS
+texts:    JSR textcard
+          JMP done
+textcard: LDA #9
+          JMP entry2
+pictures: JSR picture
+          JMP done
+picture:  LDA #9
+          JMP body2
+entry2:   JMP body2
+body2:    RTS
+stirs:    LDY #4
+          JSR take
+stirdone: JMP done
+turn:     LDA #1
+          JMP done
+
+*= $AD00
+scene:    .byte 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 `);
 // The key reader counts its wait at $4E and $4F, where the seed goes.
 const cardTitle = (options = {}) => {
   const m = machine(CARD), a = name => at(CARD, name), events = [];
-  const map = { seed: 0x4e, routines: { [a('print')]: 'print', [a('take')]: 'take', [a('drop')]: 'drop', [a('restart')]: 'restart', [a('readkey')]: 'read-key' } };
-  const o = observe(m, map, { kind: 'card', game: { volumes: {} }, emit: e => events.push(e), ...options });
+  const map = {
+    seed: 0x4e,
+    routines: {
+      [a('print')]: 'print', [a('take')]: 'take', [a('drop')]: 'drop', [a('restart')]: 'restart', [a('readkey')]: 'read-key',
+      [a('wipe')]: 'wipe-rows', [a('arrow')]: 'arrow', [a('effect')]: 'effect', [a('actions')]: 'action-cards',
+      [a('entry')]: 'cout', [a('body')]: 'cout', [a('textcard')]: 'text-card', [a('picture')]: 'load-picture',
+      [a('entry2')]: 'outport', [a('body2')]: 'outport',
+    },
+    stir: { from: a('stirs'), to: a('stirdone') - 1, done: a('stirdone'), counts: [] },
+    ticks: [{ at: a('turn'), scene: 'SCENE' }],
+  };
+  const game = { volumes: { DISK: { SCENE: { data: b64(m.mem.slice(0xad00, 0xad10)) } } } };
+  const o = observe(m, map, { kind: 'card', game, emit: e => events.push(e), ...options });
   return { m, o, events, a };
 };
 
@@ -355,6 +418,49 @@ test('a card title\'s restart leaves every routine, and goes on as the game', ()
   assert.deepEqual(events, [{ step: 'drop', y: 1 }, { step: 'restart' }, { step: 'take', y: 2 }, { result: 'take', a: 3 }]);
   assert.equal(o.depth, 0);
   assert.equal(o.running, null);
+});
+
+// Runs the card title from `entry` to its end, and gives its events.
+const cardRun = (entry, options) => { const { m, events, a } = cardTitle(options); run(m, a(entry), a('done')); return events; };
+
+test('for the view, a card routine\'s call of another by JSR is an event marked inside, with its result', () => {
+  assert.deepEqual(cardRun('wipes', { view: true }), [{ step: 'wipe-rows', a: 0 }, { step: 'take', y: 5, inside: true }, { result: 'take', a: 3, inside: true }]);
+});
+
+test('a card routine reached by running on from the one before it gives the view nothing', () => {
+  assert.deepEqual(cardRun('arrows', { view: true }), [{ step: 'arrow', a: 0 }]);
+});
+
+test('an entry of a table of jumps, called, is one event for the view; the routine it goes on to gives nothing', () => {
+  assert.deepEqual(cardRun('cards', { view: true }), [{ step: 'action-cards', a: 0 }, { step: 'cout', a: 7, inside: true }]);
+});
+
+test('a jump to an entry of another library\'s table is an event for the view; a jump to a routine\'s own code is not', () => {
+  assert.deepEqual(cardRun('texts', { view: true }), [{ step: 'text-card', a: 0 }, { step: 'outport', a: 9, inside: true }]);
+  assert.deepEqual(cardRun('pictures', { view: true }), [{ step: 'load-picture', a: 0 }]);
+});
+
+test('a call a stir makes is an event for the view, with no result', () => {
+  assert.deepEqual(cardRun('stirs', { view: true }), [{ step: 'take', y: 4, inside: true }]);
+});
+
+test('without the view, a card title gives none of the calls made inside a routine or by a stir', () => {
+  assert.deepEqual(cardRun('wipes'), [{ step: 'wipe-rows', a: 0 }]);
+  assert.deepEqual(cardRun('cards'), [{ step: 'action-cards', a: 0 }]);
+  assert.deepEqual(cardRun('texts'), [{ step: 'text-card', a: 0 }]);
+  assert.deepEqual(cardRun('stirs'), []);
+});
+
+test('a card title\'s tick stops the processor, and it is ticking until the run goes on', () => {
+  const { m, o, events, a } = cardTitle();
+  m.cpu.pc = a('turn');
+  m.cpu.step();
+  assert.deepEqual(events, [{ step: 'tick' }]);
+  assert.equal(m.cpu.pc, a('turn'), 'the read waits');
+  assert.equal(o.ticking(), true);
+  m.cpu.step();
+  assert.equal(o.ticking(), false);
+  assert.equal(m.cpu.pc, a('turn') + 2, 'the read goes on');
 });
 
 // A few instructions for the hooks to sit on: two NOPs and a JSR to a routine that returns at once.

@@ -21,6 +21,7 @@
 //   o.depth      how deep the game is in the toolkit's routines
 //   o.running    the outermost routine running, or null
 //   o.waits()    with the machine idle, whether the game waits for a key; if not, it is busy and the run goes on
+//   o.ticking()  whether the run has stopped for a turn of the game's own loop, to be given a key or none
 //   o.mark()     for a vector title: a run starts, and with it the time of the key just pressed
 //   o.time()     for a vector title: the last key's time, in cycles
 //   o.since()    for a vector title: the cycle at which the routine running began to wait for a key, at its first
@@ -102,7 +103,7 @@ export function observe(m, map, options) {
   return {
     get depth() { return s.depth; },
     get running() { return s.running; },
-    waits: rules.waits, mark: rules.mark, time: rules.time, since: rules.since, problem: rules.problem,
+    waits: rules.waits, ticking: rules.ticking, mark: rules.mark, time: rules.time, since: rules.since, problem: rules.problem,
   };
 }
 
@@ -272,6 +273,7 @@ function vector(s) {
     // a view's step still running when the game leaves every routine is over
     left: () => { for (const done of [...running]) done(); },
     waits: () => s.depth === 0 || waiting(),
+    ticking: () => s.depth > 0 && s.running === 'tick',
     // After a turn, the next key's time runs from the turn's start. The run stopped one instruction past it.
     mark: () => { Object.assign(time, { from: null, to: null, start: time.turn ?? m.cpu.cycles, turn: null }); },
     time: () => (time.to ?? m.cpu.cycles) - (time.from ?? time.start),
@@ -298,9 +300,9 @@ function card(s) {
 
   // A tick stops a scene's loop before it reads the keyboard, for the pilot to give it a key or none. It stops only
   // while the tick's scene is in memory at $AD00. When the run goes on, the read goes on.
+  let ticking = false;
   for (const t of map.ticks ?? []) {
     const head = bytes(Object.values(game.volumes).map(v => v[t.scene]).find(Boolean).data).subarray(0, 16);
-    let ticking = false;
     chain(m, t.at, () => {
       if (!started()) return false;
       if (ticking) ticking = false;
@@ -330,6 +332,28 @@ function card(s) {
   // A routine at $D000 or above is the ROM's. While the language card is read, other code is at that address.
   const routines = Object.entries(map.routines).map(([at, full]) => ({ at: +at, full, present: a => !(a >= 0xd000 && m.sw.lcRead) }));
 
+  // The view's own events (`view`). A card title's view shows the machine's screen, and what draws words clean reads
+  // every call that prints, whichever routine makes it. So each call made while a routine runs is given, marked
+  // `inside`, with its result. A call made by a stir is given too, with no result.
+  // Not every arrival at a routine's address is a call of its own. An entry in a toolkit's table of jumps goes on to
+  // the routine itself, and one routine may run on into the next: both are still the call that came before. So a
+  // call is given to the view when a JSR makes it, or when a jump arrives at an entry of a table, which is how one
+  // library leaves for another's routine. `last` is the address of the instruction before the one now running.
+  let last = 0;
+  if (s.view) {
+    const step = m.cpu.step.bind(m.cpu);
+    m.cpu.step = () => { const pc = m.cpu.pc, cycles = step(); last = pc; return cycles; };
+  }
+  const JSR = 0x20, JUMPS = new Set([0x4c, 0x6c]);
+  const calls = c => { const op = c.read(last); return op === JSR || JUMPS.has(op) && c.read(c.pc) === 0x4c; };
+  const inside = event => emit({ ...event, inside: true });
+  const within = (c, name, fixed, quiet) => {
+    if (!calls(c)) return;
+    const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y, c: c.c }, CARD_INLINE);
+    inside(event);
+    if (GIVES[name] && !quiet) s.returned(back, r => inside(result(name, r)));
+  };
+
   // A call into the toolkit.
   const call = (c, name, fixed, ours) => {
     if (!ours) return;
@@ -337,7 +361,7 @@ function card(s) {
     if (name === 'read-key') { fix(); s.returned(returnTo(c), fix); }
     if (CARD_THROUGH.has(name)) s.leaveAll();
     if (s.depth > 0 && left && gone(c)) { left.drop(); s.depth = 0; s.end(); }
-    if (s.inside() || stirring(c)) return;
+    if (s.inside() || stirring(c)) { if (s.view) within(c, name, fixed, stirring(c)); return; }
     const { event, after, back, inline } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y, c: c.c }, CARD_INLINE);
     emit(event);
     if (CARD_THROUGH.has(name)) return;
@@ -352,5 +376,6 @@ function card(s) {
     // A routine that waits for keys is a wait, and so is the key reader. The Monitor's RDKEY waiting at its address is
     // a wait inside whatever routine called it.
     waits: () => s.depth === 0 || WAITS.has(s.running) || s.running === 'read-key' || RDKEY.has(m.cpu.pc) || inRom(m),
+    ticking: () => ticking,
   };
 }
