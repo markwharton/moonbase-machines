@@ -327,22 +327,6 @@ test('a setting\'s control follows the store, wherever a change is made, and one
   delete globalThis.document;
 });
 
-test('a setting an engine acts on: its control goes in the element the page gives, first or last, and only where offered', async () => {
-  const { offer } = await import('@moonbase-machines/player/settings.js');
-  // (just enough of a page for a box and a menu, each label keeping what is put in it)
-  globalThis.document = { createElement: tag => ({ tag, kids: [], append(...k) { this.kids.push(...k); }, addEventListener() {} }) };
-  const words = el => el.kids.filter(k => typeof k === 'string').join('').trim();
-  const line = { placed: [], append(el) { this.placed.push(words(el)); }, prepend(el) { this.placed.unshift(words(el)); } };
-  const settings = { get: def => def.default, set: () => Promise.resolve(), on: () => {}, offered: def => def.name !== 'hidden' };
-  const menu = offer({ name: 'monitor', type: ['colour', 'green'], default: 'colour', owner: 'person', words: 'Monitor', labels: ['Colour', 'Green'] }, settings, line);
-  offer({ name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' }, settings, line, { first: true });
-  const hidden = offer({ name: 'hidden', type: 'boolean', default: false, owner: 'person', words: 'Hidden' }, settings, line);
-  assert.deepEqual(line.placed, ['Sound', 'Monitor'], 'Sound first, then the rest as they are offered, and no hidden one');
-  assert.equal(menu.value, 'colour');
-  assert.equal(hidden.value, false, 'a hidden setting still has its value');
-  delete globalThis.document;
-});
-
 test('a text page code as its character: inverse below $80, the low codes as capitals, $7F as a space', async () => {
   const { textChar } = await import('@moonbase-machines/apple2e/screen.js');
   assert.deepEqual(textChar(0xc1), { ch: 'A', inverse: false });

@@ -36,10 +36,6 @@
 //                                      follows every change of it, wherever made, so two controls for one setting
 //                                      stay in step. A change made with it goes to the store. If it cannot be kept,
 //                                      the setting goes back to the old value, and failed(error) hears why.
-//
-//   offer(def, settings, line, { first?, failed? })   a setting as an engine acts on it: { value, on(f) }, its value
-//                                      now, and each change of it told to every f. Where the page offers the
-//                                      setting, its control goes in the element `line`, first or last.
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';
@@ -75,11 +71,6 @@ export function control(def, settings, { failed = () => {} } = {}) {
   return label;
 }
 
-export function offer(def, settings, line, { first = false, failed = () => {} } = {}) {
-  const s = { get value() { return settings.get(def); }, on(f) { settings.on(def, f); return this; } };
-  if (settings.offered(def)) line[first ? 'prepend' : 'append'](control(def, settings, { failed }));
-  return s;
-}
 
 export const describe = type => Array.isArray(type) ? 'one of ' + type.map(v => v === '' ? 'nothing' : v).join(', ') : 'on or off';
 

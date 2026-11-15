@@ -6,7 +6,7 @@
 // disk and the settings are the page's to give (its provider, provider.js), and the player reads no address and
 // keeps nothing in the browser itself.
 //
-//   await play({ way, slug, title, data, root, disk, settings, controls, using, preview, words, screen, watch, claim, pace,
+//   await play({ way, slug, title, data, root, disk, settings, using, preview, words, screen, watch, claim, pace,
 //                keys, route, mini, roms, studies, downloadDisk })
 //     way          'original' or 'remake' (the default)
 //     slug         the title's name in addresses: its section's class, its disk
@@ -17,8 +17,6 @@
 //     root         the page's section the player is made in
 //     disk         the title's disk (disk/disk.js `openDisk`, `title/<slug>`), the page's to open where it keeps files
 //     settings     the person's settings, the page's typed store (settings.js): each declared setting's value, kept
-//     controls     the page's element for the settings' controls, such as a bar at the top of the page; without it
-//                  they go on the options line under the game
 //     using        called with the settings this game uses (declared.js), once its title and data are loaded and
 //                  before it runs, for the page to place their controls
 //     preview     the preview's build: what only it has may be used
@@ -66,9 +64,8 @@ import { paperBox, phoneKeys, statusLine, KEYS_MARKUP } from './parts.js';
 const SCREENS = { prodos: [280, 192], dos33: [280, 192], c64: [384, 272] };
 const ENGINES = { original: () => import('./engines/original.js'), card: () => import('./engines/scenes.js'), vector: () => import('./engines/scenes.js') };
 // The settings the player acts on itself (declared.js): the speaker, a Commodore 64's printer, and a title's version
-// with its bugs fixed. `offer` (settings.js) gives each one's value and puts its box or menu with the controls.
+// with its bugs fixed. The page places their controls, from `using`; the player draws none.
 import { SOUND, PRINTER, FIXED } from './declared.js';
-import { offer } from './settings.js';
 // The keys a browser scrolls the page with. On the play page they go to the game, and the page does not scroll. The
 // exception is an element that takes keys itself, such as a box to type in, a menu, a button or a link (ownKeys).
 const SCROLL = new Set([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
@@ -83,15 +80,14 @@ export async function play(options) {
   root.append(paperBox(words.printer));
   const $ = id => root.querySelector('#' + id);
   const stage = root.querySelector('.stage'), status = $('status'), line = root.querySelector('.options .settings');
-  const controls = options.controls ?? line;
   const say = statusLine(status);
   const fail = err => { say('The game stopped: ' + err.message, { error: true }); console.error(err); };
-  // A setting the player or its engine acts on, by its declaration (settings.js `offer`): its value from the page's
-  // store, and its control with the controls where the page offers it; `first`, before the others (the sound)
+  // A setting the player or its engine acts on, by its declaration: its value, read from the page's store each time,
+  // and on(f), which hears each change of it, wherever it was made.
   let used = [];   // (the settings this game uses, below)
-  const setting = (def, { first = false } = {}) => {
+  const setting = def => {
     if (!used.includes(def)) throw new Error(`the player: ${def.name} is not among the settings this game uses`);
-    return offer(def, settings, controls, { first, failed: err => say(`${def.words} was not kept: ${err.message}`, { error: true }) });
+    return { get value() { return settings.get(def); }, on(f) { settings.on(def, f); return this; } };
   };
   try {
     if (!disk || !settings) throw new Error('the page gives the player its disk and its settings');
@@ -149,7 +145,7 @@ export async function play(options) {
     if (!handle) return;
 
     // the sound, where the engine has it: the player's speaker, on or off
-    if (handle.sound) { const on = setting(SOUND, { first: true }); handle.sound(on.value); on.on(v => handle.sound(v)); }
+    if (handle.sound) { const on = setting(SOUND); handle.sound(on.value); on.on(v => handle.sound(v)); }
     // the keys, one listener for every engine: the machine's code for each (keys.js), offered to the page first
     // (`claim`), then the engine's: the event itself where it reads the keyboard, else the code pressed
     const keyed = e => {
