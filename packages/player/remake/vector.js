@@ -273,8 +273,12 @@ export function vectorRoutines(title) {
       e.inside++; e.emit({ step: 'shift-down', left, right, top, bottom, by }); e.inside--;
       kit.span(e, nextAt(e, step), { at: step.at });
     },
-    // a part's title marks where the original's loader starts a part: the scene's own code, and only a step
-    part: (e, args) => { const { fixed } = inputs(e, 'part', args); e.emit(describe('part', fixed, e)); },
+    // a part's title marks where the original's loader starts a part, as the stack is set afresh ($4035): a step, and
+    // its code on the machine to the script's next line
+    part: (e, args, step) => {
+      const { fixed } = inputs(e, 'part', args); e.emit(describe('part', fixed, e));
+      kit.span(e, nextAt(e, step), { at: step.at });
+    },
 
     // the waits, $5C23, $5C08 and $5C20: the space bar, or for the last escape too; the second then fills its
     // button's rows ($5C08): eleven from row $B2 with the layout's first window, else from $AA
