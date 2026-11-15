@@ -304,21 +304,26 @@ test('clean text paints a printed word\'s dots in one colour on the colour aroun
   for (const x of [11, 13, 15]) assert.deepEqual(at(px, x, 50), [0, 0, 0], `the gap at ${x} is the black around the word`);
 });
 
-test('a setting\'s control: a change takes effect at once, and one that cannot be kept goes back and says why', async () => {
+test('a setting\'s control follows the store, wherever a change is made, and one that cannot be kept goes back and says why', async () => {
   const { control } = await import('@moonbase-machines/player/settings.js');
   // (just enough of a page for one checkbox)
   const made = [];
   globalThis.document = { createElement: tag => { const el = { tag, listeners: {}, append() {}, addEventListener(t, f) { this.listeners[t] = f; } }; made.push(el); return el; } };
   const def = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
-  let kept = true, told = [], why = null;
-  const settings = { get: () => kept, set: (d, v) => v === false ? Promise.reject(new Error('offline')) : (kept = v, Promise.resolve()) };
-  control(def, settings, v => told.push(v), err => { why = err.message; });
+  // (a store that keeps every value but false, which it cannot store)
+  let value = true; const heard = [];
+  const settings = { get: () => value, on: (d, f) => heard.push(f), set: (d, v) => { value = v; for (const f of heard) f(v); return v === false ? Promise.reject(new Error('offline')) : Promise.resolve(); } };
+  let why = null;
+  control(def, settings, { failed: err => { why = err.message; } });
   const box = made.find(el => el.tag === 'input');
+  assert.equal(box.checked, true, 'the store\'s value');
   box.checked = false;
   await box.listeners.change();
-  assert.deepEqual(told, [false, true], 'the game hears the change at once, then the old value back');
+  assert.equal(value, true, 'the setting back as it was');
   assert.equal(box.checked, true, 'the box back as it was');
   assert.equal(why, 'offline');
+  settings.set(def, 'elsewhere');
+  assert.equal(box.checked, 'elsewhere', 'a change made elsewhere shows in the box');
   delete globalThis.document;
 });
 
@@ -328,7 +333,7 @@ test('a setting an engine acts on: its control goes in the element the page give
   globalThis.document = { createElement: tag => ({ tag, kids: [], append(...k) { this.kids.push(...k); }, addEventListener() {} }) };
   const words = el => el.kids.filter(k => typeof k === 'string').join('').trim();
   const line = { placed: [], append(el) { this.placed.push(words(el)); }, prepend(el) { this.placed.unshift(words(el)); } };
-  const settings = { get: def => def.default, set: () => Promise.resolve(), offered: def => def.name !== 'hidden' };
+  const settings = { get: def => def.default, set: () => Promise.resolve(), on: () => {}, offered: def => def.name !== 'hidden' };
   const menu = offer({ name: 'monitor', type: ['colour', 'green'], default: 'colour', owner: 'person', words: 'Monitor', labels: ['Colour', 'Green'] }, settings, line);
   offer({ name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' }, settings, line, { first: true });
   const hidden = offer({ name: 'hidden', type: 'boolean', default: false, owner: 'person', words: 'Hidden' }, settings, line);

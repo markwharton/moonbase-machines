@@ -31,16 +31,15 @@
 //                              stops it.
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
 //
-//   control(def, settings, changed?, failed?)   a setting's control, as a <label>: a box for a boolean or a menu
-//                                      for an enum, with its words from the declaration. A change calls
-//                                      changed(value) at once and is then kept. If it cannot be kept, the control
-//                                      goes back to the old value, changed(old) is called, and failed(error) hears
-//                                      why. The player's options line uses it, and so can a site's own settings page.
+//   control(def, settings, { failed? })   a setting's control, as a <label>: a box for a boolean or a menu for an
+//                                      enum, with its words from the declaration. It shows the store's value and
+//                                      follows every change of it, wherever made, so two controls for one setting
+//                                      stay in step. A change made with it goes to the store. If it cannot be kept,
+//                                      the setting goes back to the old value, and failed(error) hears why.
 //
 //   offer(def, settings, line, { first?, failed? })   a setting as an engine acts on it: { value, on(f) }, its value
-//                                      now, with each change told to every f. Where the page offers the setting,
-//                                      its control goes in the element `line`, first or last; failed(error) hears
-//                                      a change that was not kept.
+//                                      now, and each change of it told to every f. Where the page offers the
+//                                      setting, its control goes in the element `line`, first or last.
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';
@@ -51,24 +50,25 @@ export function check(type, value) {
   throw new Error('settings: no such type: ' + JSON.stringify(type));
 }
 
-export function control(def, settings, changed = () => {}, failed = () => {}) {
-  const label = document.createElement('label'), choice = Array.isArray(def.type), value = settings.get(def);
+export function control(def, settings, { failed = () => {} } = {}) {
+  const label = document.createElement('label'), choice = Array.isArray(def.type);
   if (def.title) label.title = def.title;
   const box = choice
     ? Object.assign(document.createElement('select'), { innerHTML: def.type.map((v, i) => `<option value="${v}">${def.labels[i]}</option>`).join('') })
     : Object.assign(document.createElement('input'), { type: 'checkbox' });
   box.id = def.name;
-  if (choice) { box.value = value; label.append(def.words + ' ', box); } else { box.checked = value; label.append(box, ' ' + def.words); }
-  // The new value takes effect at once. If it cannot be kept, the box and the setting go back to what they were,
-  // and `failed` hears why.
+  const show = v => { if (choice) box.value = v; else box.checked = v; };
+  show(settings.get(def));
+  if (choice) label.append(def.words + ' ', box); else label.append(box, ' ' + def.words);
+  settings.on(def, show);
+  // The new value goes to the store, which tells every listener at once. If it cannot be kept, the setting goes back
+  // to what it was, and `failed` hears why.
   box.addEventListener('change', async () => {
-    const before = settings.get(def), v = choice ? box.value : box.checked;
-    changed(v);
-    try { await settings.set(def, v); }
+    const before = settings.get(def);
+    try { await settings.set(def, choice ? box.value : box.checked); }
     catch (err) {
-      if (choice) box.value = before; else box.checked = before;
-      changed(before);
       settings.set(def, before).catch(() => {});
+      show(settings.get(def));
       failed(err);
     }
   });
@@ -76,10 +76,8 @@ export function control(def, settings, changed = () => {}, failed = () => {}) {
 }
 
 export function offer(def, settings, line, { first = false, failed = () => {} } = {}) {
-  const s = { value: settings.get(def), told: [], on(f) { this.told.push(f); return this; } };
-  if (!settings.offered(def)) return s;
-  const tell = v => { s.value = v; for (const f of s.told) f(v); };
-  line[first ? 'prepend' : 'append'](control(def, settings, tell, failed));
+  const s = { get value() { return settings.get(def); }, on(f) { settings.on(def, f); return this; } };
+  if (settings.offered(def)) line[first ? 'prepend' : 'append'](control(def, settings, { failed }));
   return s;
 }
 
