@@ -170,7 +170,8 @@ export function script({ lines, targets, left }, bytes, origin, { stops = new Se
       const kept = loads.filter(([, g]) => !takes.includes(g)); loads = kept; flush();
       const args = [...fixed, ...[...takes].map(g => given[g] ?? g)];
       if (name === 'objects' && given.x !== undefined && given.y !== undefined) args.splice(fixed.length, 2, H(given.x | given.y << 8));
-      if (name === 'key-at' || name === 'key') args[0] = given.a !== undefined ? JSON.stringify(String.fromCharCode(given.a & 0x7f)) : args[0];
+      // (a key cap's character, quoted for one with its high bit set, as the Remake gives it back, else its number)
+      if (name === 'key-at' || name === 'key') args[0] = given.a === undefined ? args[0] : given.a & 0x80 ? JSON.stringify(String.fromCharCode(given.a & 0x7f)) : String(given.a);
       put([name, ...args, r.call.words ?? ''].join(' ').trim());
       // (a jump to the routine: its return is this code's, at the jump's own address)
       if (r.call.tail) put('return');

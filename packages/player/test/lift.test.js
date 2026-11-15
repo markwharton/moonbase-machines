@@ -37,6 +37,11 @@ test('a routine in the file, reached by a jump or by running on into it, is its 
   assert.deepEqual(lines([0xa9, 1, 0x4c, 0x06, 0x08, 0x60, 0xca, 0x60], { 0x0806: 'jump' }), ['0800  a = 1', '0802  goto L0806', '0806  jump a', '0806  return']);
 });
 
+test('a key cap\'s character is quoted with its high bit set, and else its number', () => {
+  // LDA #$C1  JSR $7000  LDA #$0D  JSR $7000  RTS
+  assert.deepEqual(lines([0xa9, 0xc1, 0x20, 0x00, 0x70, 0xa9, 0x0d, 0x20, 0x00, 0x70, 0x60], { 0x7000: 'key' }).filter(l => /key/.test(l)), ['0802  key "A"', '0807  key 13']);
+});
+
 test('a jump out of the file to code that is no routine stays a jump into the engine', () => {
   assert.deepEqual(lines([0x4c, 0x00, 0x60], { 0x500c: 'dot' }), ['0800  goto-engine $6000']);
 });
