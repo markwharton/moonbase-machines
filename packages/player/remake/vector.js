@@ -424,5 +424,9 @@ export function vectorRoutines(title) {
   };
   routines.timed = true;
   routines.inline = inline;
+  // a step whose code runs on the machine from its own address, whose instructions the machine counts: a span of
+  // code that is one step, and a routine reached at its own address
+  const SPANS = new Set(['text-screen', 'scroll', 'shift-down', 'clear-screen', 'pause', 'quit', 'load-part', 'write-settings', 'splash', 'part']);
+  routines.native = (e, step) => SPANS.has(step.words[0]) || own(e, step.at);
   return routines;
 }

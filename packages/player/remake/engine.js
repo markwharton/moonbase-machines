@@ -468,8 +468,9 @@ export class Engine {
     if (!routine) throw new Error('no routine ' + name);
     this.called = true;
     // the call into the toolkit, its JSR's cycles; the routine's own lines count as they run
-    // and the loads the lifter took into the step (Engine.cost)
-    if (step && this.timed && step.at !== null) { const c = this.cost(this.program.steps, step.index); this.cycles += c; this.delay += c / CYCLES_PER_MS; }
+    // and the loads the lifter took into the step (Engine.cost). A step whose own code, from its address, runs as it
+    // is (the title's `native`, as a vector title's on the Original's machine) counts its instructions as they run.
+    if (step && this.timed && step.at !== null && !this.routines.native?.(this, step)) { const c = this.cost(this.program.steps, step.index); this.cycles += c; this.delay += c / CYCLES_PER_MS; }
     return routine(this, args, step);
   }
 
