@@ -3,6 +3,10 @@
 // loaded when its game asks for it, the Commodore 64 (@moonbase-machines/c64) or the Apple IIe
 // (@moonbase-machines/apple2e), and not the other; on moonbase's own ROMs, which need nothing of the makers'.
 //
+// The Remake of a Commodore 64 title that runs on its machine is played here too (engines/scenes.js hands it over,
+// `remake`): the same machine on moonbase's ROMs, with the title's fixes made to its program on the disk when the
+// player's Bugs fixed setting is on (remake/fixes.js).
+//
 // Of the player's `game` it reads: the game's data (`game`), its saves (`saves`), the stage, the status, and what only
 // a workshop has (play.js): `roms`, the makers' ROMs this machine has, an Apple game's line 1, Apple's own booting its
 // disks, { apple: { system, disk2 }, image: async name => its disk image's bytes }, a Commodore 64 game's Commodore's,
@@ -20,10 +24,10 @@ import { MONITOR, VECTORS } from '../declared.js';
 // vectors. A Commodore 64 game's are the player's own.
 export const uses = ({ game }) => game.kind === 'c64' ? [] : [MONITOR, VECTORS];
 
-export async function play(g) {
+export async function play(g, { remake = false } = {}) {
   g.stage.innerHTML = '<svg id="vector" viewBox="0 0 140 192" preserveAspectRatio="none"></svg><canvas id="screen" width="560" height="384" tabindex="0"></canvas>';
   const canvas = g.stage.querySelector('canvas'), ctx = canvas.getContext('2d'), layer = g.stage.querySelector('#vector');
-  return g.game.kind === 'c64' ? c64(g, { canvas, layer, speaker: new Speaker() }) : apple(g, { canvas, ctx, layer, speaker: new Speaker() });
+  return g.game.kind === 'c64' ? c64(g, { canvas, layer, speaker: new Speaker(), remake }) : apple(g, { canvas, ctx, layer, speaker: new Speaker() });
 }
 
 // An Apple II game: the machine, the canvas, the keys, and the hooks for the vectors. With Apple's
@@ -108,18 +112,21 @@ return {
 // 384 by 272 doubled, the keys as the matrix, the arrows its cursor keys, and a gamepad the joystick. A demonstration
 // (play.js `demonstrate`, the game's data's steps) is typed into the same buffer the same way, after the start, the game
 // taking each key when it asks for one; the person's first key or push of the stick drops what is left of it.
-async function c64(g, { canvas, layer, speaker }) {
+async function c64(g, { canvas, layer, speaker, remake }) {
   const { game, saves, roms: makers, studies, say, printer } = g;
   const [{ C64 }, { keyboard, painter }, { SID }, { c64Roms, typed: startTyped }, { add }] = await Promise.all([
     import('@moonbase-machines/c64/machine.js'), import('@moonbase-machines/c64/browser.js'),
     import('@moonbase-machines/c64/sid.js'), import('@moonbase-machines/c64/start.js'), import('@moonbase-machines/c64/d64.js')]);
-  const roms = await c64Roms(makers?.choice ?? null, makers?.load);
+  // (a Remake's machine is on moonbase's ROMs, with the characters the page gives where it gives them)
+  const roms = remake ? { ...await c64Roms(null), ...makers?.chargen ? { chargen: makers.chargen } : {} } : await c64Roms(makers?.choice ?? null, makers?.load);
   if (!roms) { say('Commodore\'s ROMs, asked for, are not here.', { error: true }); return null; }
   g.chargen = roms.chargen;   // (the printer's paper in the machine's characters: play.js)
   const m = new C64(game, roms, { log: (...a) => console.log(...a), printer });
   // What the game SAVEs to its disk, kept on the player's disk and given back to the drive the next time (play.js
   // `saves`)
   saves.drive(m.drive);
+  // (a Remake with its bugs fixed: the title's fixes made to its program on the disk, before the game loads it)
+  if (remake && g.fixed && g.title?.fixes) { const { fixFiles } = await import('../remake/fixes.js'); await fixFiles(g.title, m.drive, g.folder); }
   // (and, where the page gives them, `studies`, files of its own for the disk, a name to a file: in the drive, not
   // kept)
   const raw = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
@@ -164,6 +171,8 @@ async function c64(g, { canvas, layer, speaker }) {
     press(k) { m.type(String.fromCharCode(k)); },   // (into the KERNAL's buffer, as typed)
     key(e) { if (e.type === 'keydown' && !e.repeat) theirs(); for (const f of listeners[e.type]) f(e); },
     demonstrate(steps) { demo = typingOf(steps, 'c64'); },
+    // the page's keys at the start, typed into the KERNAL's buffer after the game has started, as a demonstration is
+    keys(list) { demo = String.fromCharCode(...list); },
     start() { speaker.start(); },
     sound(on) { sound = on; },
     engine: m,

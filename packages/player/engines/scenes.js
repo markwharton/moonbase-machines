@@ -29,6 +29,8 @@ export function uses({ title, game, mini }) {
 export async function play(g) {
   const { title, scripts, game: disk, stage, say, fail, saves, $ } = g;
   const c64 = disk.kind === 'c64';
+  // A Commodore 64 title that runs on its machine is the 64 itself, as the Original's engine runs it.
+  if (c64 && title.machine) return (await import('./original.js')).play(g, { remake: true });
   stage.innerHTML = `<svg id="screen" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-label="The game's screen"></svg>`;
   const svg = $('screen'), drawn = c64 ? 'c64' : title.engine === 'card' ? 'card' : 'vector';
 
