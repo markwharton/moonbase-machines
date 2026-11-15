@@ -4,9 +4,10 @@ import { OPS, SIZE, operand, hex } from '@moonbase-machines/mos6502/disasm.js';
 import { INLINE as READERS } from '@moonbase-machines/vector/inline.js';
 import { TAKES } from './events.js';
 
-// the data after a call, read from the file, with the text quoted so that it reads as one word; `mark` names a byte the
-// code writes by its address (@moonbase-machines/vector/inline.js)
-export const readers = from => Object.fromEntries(Object.entries(from).map(([k, f]) => [k, (b, at, mark) => { const r = f(i => b[i], at, mark); return { length: r.length, words: k === 'text' || k === 'print' || k === 'say' ? JSON.stringify(r.value) : r.value }; }]));
+// the data after a call, read from the file, with the text quoted so that it reads as one word, and DEL written as
+// \u007f as JSON writes the other control characters; `mark` names a byte the code writes by its address
+// (@moonbase-machines/vector/inline.js)
+export const readers = from => Object.fromEntries(Object.entries(from).map(([k, f]) => [k, (b, at, mark) => { const r = f(i => b[i], at, mark); return { length: r.length, words: k === 'text' || k === 'print' || k === 'say' ? JSON.stringify(r.value).replace(/\x7f/g, '\\u007f') : r.value }; }]));
 const INLINE = readers(READERS);
 
 // `stops` are addresses where data begins that is not a table of code addresses, the objects'
