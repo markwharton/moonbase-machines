@@ -355,6 +355,21 @@ export function vectorRoutines(title) {
       e.emit(result('read-key', e));
     },
 
+    // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
+    // ($1382, through PART0's key poll $5283): A the key down then, the carry set for escape, and X and Y 0. With no
+    // key it gives 0; only a joystick, which the Remake has none of, gives it anything else. The page gives a key or
+    // none as time passes, and the pilots one at a time, -1 for none.
+    tick: (e, args, step) => {
+      if (e.waitingOn !== step) { e.waitingOn = step; e.emit(describe('tick', [], e)); }
+      const k = e.key();
+      if (k === undefined) return 'wait';
+      if (title.visit?.[k]) { e.visit(k); return 'wait'; }
+      e.waitingOn = null;
+      if (k === KEY.menu && title.menu) e.leave(...title.menu);
+      e.a = e.flags(k >= 0 ? k & 0x7f : 0); e.c = k === KEY.escape ? 1 : 0; e.x = 0; e.y = 0;
+      e.emit(result('tick', e));
+    },
+
     // The loader's splash, before PART0 runs: TITLE, a double hi-res picture, until a key. The
     // original's engine is not in yet, so it is no step; the view draws it.
     splash: (e, args, step) => {
