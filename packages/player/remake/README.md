@@ -98,10 +98,11 @@ The scripts are the same for every title. What differs is the routines their ste
   calls (`@moonbase-machines/apple2e`), the Commodore 64's KERNAL, I/O page, drive, printer and BASIC
   (`@moonbase-machines/c64`), the keyboard and the soft switches. The screen is the machine's own, written byte for
   byte as the original wrote it.
-- **Vector** (`vector.js`, `layout.js`, `raster.js`, `problems.js`, `view.js`): a title on the vector engine. Its
-  routines (a text, a picture, a box, a wait, a key) are written again here by the original's rules for keys, random
-  numbers and waits. The view draws the pictures from their shapes as SVG (`@moonbase-machines/vector`), at any size.
-  A title's problems are its own module, rewritten in JavaScript as generators, run with the helpers in `problems.js`.
+- **Vector** (`vector.js`, `layout.js`, `raster.js`, `view.js`): a title on the vector engine. Its routines (a text,
+  a picture, a box, a wait, a key) are written again here by the original's rules for keys, random numbers and waits.
+  The view draws the pictures from their shapes as SVG (`@moonbase-machines/vector`), at any size. A title's problems
+  are lifted from their own files like its parts, each a script `probN`; a problem's own routines that draw are
+  painted by the title's `paint.js`, and those that read keys run their own lifted code inside their steps.
 
 `load.js` makes the engine from the title and its scripts (`makeEngine`), with the routines of the title's `engine`.
 `../engines/scenes.js` plays it on the page.
@@ -158,5 +159,5 @@ its code and written again routine for routine, playing the game's data as the o
 | `events.js` | what each step is as an event, in the same words for the original and the remake |
 | `lift.js` | the lifter: a file's 6502 walked from its entries into a scene script; the card engine uses it to lift code a title's scenes miss, as it runs |
 | `card.js`, `cards.js` | the card engine's routines, and what it knows of every title it plays |
-| `vector.js`, `layout.js`, `raster.js`, `problems.js` | the vector engine's routines; its text laid out as the engine laid it out; the original's screen dot for dot, for the scenes that read it back; its problems' helpers |
+| `vector.js`, `layout.js`, `raster.js` | the vector engine's routines; its text laid out as the engine laid it out; the original's screen dot for dot, for the scenes that read it back |
 | `view.js`, `card-view.js`, `c64-view.js` | the views: a vector title's as SVG, an Apple's hi-res page, a Commodore 64's screen |

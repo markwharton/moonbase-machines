@@ -108,7 +108,7 @@ export class Engine {
     this.called = called;
   }
   leave(name, label) {
-    this.stack = []; this.problem = null; this.waitingOn = null; this.visited = null;
+    this.stack = []; this.waitingOn = null; this.visited = null;
     this.enter(name, label);
     throw LEFT;
   }
@@ -122,13 +122,13 @@ export class Engine {
     const [name, label] = this.title.visit[this.visiting];
     this.visiting = undefined;
     if (!this.visited) {
-      this.visited = { name: this.name, pc: here, stack: this.stack, problem: this.problem, waitingOn: this.waitingOn, asked: this.asked, askMode: this.askMode, regs: [this.a, this.x, this.y, this.n, this.z, this.c, this.v] };
+      this.visited = { name: this.name, pc: here, stack: this.stack, waitingOn: this.waitingOn, asked: this.asked, askMode: this.askMode, regs: [this.a, this.x, this.y, this.n, this.z, this.c, this.v] };
       // $4C5D: the screen kept, cleared, and the graphics shown
       this.title.raster?.keepScreen();
       this.inside++; this.emit({ step: 'keep-screen' }); this.inside--;
       this.routines.show(this, [], null);
     }
-    this.stack = [{ visit: true }]; this.problem = null; this.waitingOn = null; this.asked = null;
+    this.stack = [{ visit: true }]; this.waitingOn = null; this.asked = null;
     this.a = 2; this.c = 0;
     this.enter(name, label);
   }
@@ -140,7 +140,7 @@ export class Engine {
     this.inside++; this.emit({ step: 'put-screen' }); this.inside--;
     this.routines.show(this, [], null);
     this.enter(v.name);
-    Object.assign(this, { pc: v.pc, stack: v.stack, problem: v.problem, waitingOn: v.waitingOn, asked: v.asked, askMode: v.askMode });
+    Object.assign(this, { pc: v.pc, stack: v.stack, waitingOn: v.waitingOn, asked: v.asked, askMode: v.askMode });
     [this.a, this.x, this.y, this.n, this.z, this.c, this.v] = v.regs;
   }
   label(l) { const i = this.program.labels[l]; if (i === undefined) throw new Error(this.name + ': no label ' + l); return i; }

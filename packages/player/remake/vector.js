@@ -5,7 +5,6 @@
 // the keys, the random numbers and the waits are the original's, from PART0 (docs in
 // @moonbase-machines/vector's README).
 import { describe, result, TAKES, GIVES, POLLS, WAITS, nothing } from './events.js';
-import { helpers } from './problems.js';
 import { tables, carry } from '@moonbase-machines/vector/objects.js';
 import { pictures, shapes } from '@moonbase-machines/vector/pictures.js';
 import { inside } from '@moonbase-machines/vector/draw.js';
@@ -63,17 +62,6 @@ function waiting(e, step, name, fixed, words, take) {
     if (e.title.visit?.[k]) { e.visit(k); return 'wait'; }
     if (take(k)) { e.waitingOn = null; return; }
   }
-}
-
-// $6415 calls the problem's own routines as a choice is made and taken back ($F729 and $F74B,
-// then $F776 and $F6CE, in PROB2): drawing that happens inside the ask. A problem written by hand
-// gives them as generators in e.askHooks, which run to their end here, inside, so they are drawn
-// and no step.
-function quietly(e, run) {
-  if (!run) return;
-  e.inside++;
-  try { for (let r = run.next(); !r.done; r = run.next()) if (r.value === 'wait') throw new Error('a choice drawn inside the ask cannot wait'); }
-  finally { e.inside--; }
 }
 
 // The disk's objects, by the address of their table, for the carry the object routine leaves.
@@ -183,13 +171,11 @@ export function vectorRoutines(title) {
   // carry set, and X the keyboard's byte for it, $9B, as the key read left it ($5A58, a jump into
   // the middle of a BIT that leaves only SEC and RTS).
   const letterCarry = !title.map.askClearsCarry;
-  // The problem's own routines the ask calls as a choice is made and taken back, by the map (`askCalls`, by address,
-  // where the title's `entries` say they are in its lifted code), each with A the choice's place and 2 ($64E6), run
-  // inside the ask; or a problem's written by hand, from e.askHooks.
+  // The problem's own routines the ask calls as a choice is made and taken back ($6415, in PROB2 of one title), by the
+  // map (`askCalls`, by address, where the title's `entries` say they are in its lifted code), each with A the
+  // choice's place and 2 ($64E6), run inside the ask: drawing that is no step.
   const calls = (e, kind, place) => {
-    const at = title.map.askCalls?.[kind];
-    if (!at) return quietly(e, e.askHooks?.[kind]?.(place));
-    for (const a of at) { e.a = (place + 2) & 0xff; e.runInside(...title.entries['$' + a.toString(16).toUpperCase().padStart(4, '0')]); }
+    for (const a of title.map.askCalls?.[kind] ?? []) { e.a = (place + 2) & 0xff; e.runInside(...title.entries['$' + a.toString(16).toUpperCase().padStart(4, '0')]); }
   };
   const asking = name => (e, args, step) => {
     if (e.waitingOn !== step) inputs(e, name, args);
@@ -348,29 +334,17 @@ export function vectorRoutines(title) {
     // A problem, loaded and called as the original's loader does it ($4DC3 in Nature Park, $57CA in Animal Rescue):
     // the carry says whether it is practice, the file goes where the loader puts it, and the problem runs from the
     // file's start. Nature Park's loader takes the number of times from X for a problem from the Problems menu, in
-    // place of the teacher's, and puts the teacher's back after. The carry comes back clear.
-    // A problem lifted from its file (its title's script probN) is called there, and returns here. A problem written
-    // by hand for the remake (its title's problems.js) runs as a function, until it is done.
-    problem: (e, args, step) => {
-      if (!e.problem) {
-        inputs(e, 'problem', args); e.emit(describe('problem', [], e)); e.mem[V.practice] = e.c ? 0x80 : 0;
-        e.repeats = e.mem[V.repeats];
-        if (title.map.countInX && e.c) e.mem[V.repeats] = e.x;
-        const file = codeFile('PROB' + e.a);
-        if (file) e.mem.set(file.bytes, file.origin);
-        const lifted = 'prob' + e.a;
-        if (e.sources[lifted] !== undefined) {
-          const repeats = e.repeats;
-          e.stack.push({ name: e.name, pc: e.pc, after: e => { e.c = 0; if (title.map.countInX) e.mem[V.repeats] = repeats; e.emit(result('problem', e)); } });
-          e.enter(lifted, label16(file.origin));
-          return;
-        }
-        const run = title.problems?.[e.a];
-        if (!run) throw new Error('problem ' + e.a + ' is not written yet');
-        e.problem = run(helpers(e, routines));
-      }
-      if (!e.problem.next().done) return 'wait';
-      e.problem = null; e.c = 0; e.mem[V.repeats] = e.repeats; e.emit(result('problem', e));
+    // place of the teacher's, and puts the teacher's back after. The carry comes back clear. The problem is the
+    // title's script probN, lifted from its file, called there; it returns here.
+    problem: (e, args) => {
+      inputs(e, 'problem', args); e.emit(describe('problem', [], e)); e.mem[V.practice] = e.c ? 0x80 : 0;
+      const repeats = e.mem[V.repeats];
+      if (title.map.countInX && e.c) e.mem[V.repeats] = e.x;
+      const file = codeFile('PROB' + e.a), lifted = 'prob' + e.a;
+      if (!file || e.sources[lifted] === undefined) throw new Error('problem ' + e.a + ' is not lifted yet');
+      e.mem.set(file.bytes, file.origin);
+      e.stack.push({ name: e.name, pc: e.pc, after: e => { e.c = 0; if (title.map.countInX) e.mem[V.repeats] = repeats; e.emit(result('problem', e)); } });
+      e.enter(lifted, label16(file.origin));
     },
 
     // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape

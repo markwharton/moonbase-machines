@@ -36,7 +36,7 @@ const defaultOf = async url => (await import(url.href)).default;
 export async function titleOf(folder) {
   folder = new URL(folder);
   const title = { ...(await defaultOf(new URL('title.js', folder))) };
-  // the modules a title has of its own, as its title.js names them (problems.js, paint.js), and its view's own
+  // the modules a title has of its own, as its title.js names them (paint.js), and its view's own
   // drawing (view.js), where it says it has one
   for (const name of title.modules ?? []) title[name] = await defaultOf(new URL(name + '.js', folder));
   if (title.view) title.viewSteps = await defaultOf(new URL('view.js', folder));

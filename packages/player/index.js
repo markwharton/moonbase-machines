@@ -27,7 +27,6 @@ export * as remakeEvents from './remake/events.js';
 export * as remakeLayout from './remake/layout.js';
 export * as remakeLift from './remake/lift.js';
 export * as remakeLoad from './remake/load.js';
-export * as remakeProblems from './remake/problems.js';
 export * as remakeRaster from './remake/raster.js';
 export * as remakeScript from './remake/script.js';
 export * as remakeVector from './remake/vector.js';
