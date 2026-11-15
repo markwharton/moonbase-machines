@@ -203,6 +203,8 @@ export function vectorRoutines(title) {
     },
     // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}). The
     // loader copies the picture's shapes to $E000 and the routine draws them from there, so a scene can read them.
+    // It returns the number of shapes it drew in A, and their address in X and Y, the carry clear ($7B94 in Animal
+    // Rescue, $7084 in Nature Park).
     picture: (e, args) => {
       inputs(e, 'picture', args);
       const name = filled(args.map(a => typeof a === 'object' ? a.string : a).join(' '), e.mem);
@@ -211,6 +213,7 @@ export function vectorRoutines(title) {
       if (!p) return;
       e.mem.set(p.bytes, 0xe000);
       raster.picture(p.shapes);
+      e.a = p.shapes.length & 0xff; e.x = 0; e.y = e.flags(0xe0); e.c = 0;
     },
     box: simple('box', e => raster.box(e.mem[V.layout], e.a, e.x, e.y)),
     // A panel sets the layout it clears to, as the original's panels do ($6299 and the rest). Its own text sets the
