@@ -203,6 +203,9 @@ export class Engine {
   cost(s, k) {
     const step = s[k], m = this.mem;
     if (step.at === null) return 0;
+    // (a second line at the same address is the same instruction: the BIT that skips a byte, as test and a goto; a
+    // routine's step and its return)
+    if (s[k - 1]?.at === step.at) return 0;
     let c = CYCLES[m[step.at]] + (COMPARED(step) ? 2 : 0);
     // the line before falls through to it, unless the line is where a jump comes in (its label at
     // its own address) or the line before goes elsewhere
