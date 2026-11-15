@@ -4,7 +4,7 @@
 // scenes read, and paints the original's screen for the scenes that read it back. The rules for
 // the keys, the random numbers and the waits are the original's, from PART0 (docs in
 // @moonbase-machines/vector's README).
-import { describe, result, TAKES, nothing } from './events.js';
+import { describe, result, TAKES, GIVES, POLLS, nothing } from './events.js';
 import { helpers } from './problems.js';
 import { tables, carry } from '@moonbase-machines/vector/objects.js';
 import { pictures, shapes } from '@moonbase-machines/vector/pictures.js';
@@ -456,11 +456,24 @@ export function vectorRoutines(title) {
       e.a = e.flags(err); e.c = err ? 1 : 0;
     },
   };
-  // A problem's own routine that draws (the map's `problems`): its step, and the title's painter for it (paint.js),
-  // which paints it into the model of the original's screen and does what it does to memory.
-  for (const own of Object.values(title.map.problems ?? {})) for (const name of Object.values(own)) {
-    if (name.startsWith('.') || routines[name]) continue;
-    routines[name] = (e, args) => { inputs(e, name, args); e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a])); title.paint?.[name]?.(title.model, e); };
+  // A problem's own routine (the map's `problems`): its step, as the original's transcript has it as the routine
+  // starts, and the title's painter for it (paint.js), which paints it into the model of the original's screen and
+  // does what it does to memory. A routine whose own code is lifted with the problem (probN, its address one of the
+  // lift's entries) then runs that code inside the step, as a routine that reads keys does, and gives its result as
+  // it returns; one only drawn has its address in the script as its own step and a return, or not at all. A routine
+  // that polls for a key is a step only when it gives one (events.js `POLLS`), and one whose name starts with a dot
+  // is no step at all, as the original's transcript hides it.
+  for (const [n, own] of Object.entries(title.map.problems ?? {})) for (const [at, name] of Object.entries(own)) {
+    if (routines[name]) continue;
+    const quiet = name.startsWith('.'), polls = POLLS.has(name), gives = e => !quiet && GIVES[name] && (!polls || e.a && (name !== 'blink-key' || e.c));
+    const script = 'prob' + n, label = label16(+at);
+    const lifted = e => { if (e.sources[script] === undefined) return false; const p = e.script(script), k = p.labels[label]; return k !== undefined && p.steps[k].words[0] !== name; };
+    routines[name] = (e, args) => {
+      inputs(e, name, args);
+      if (!polls && !quiet) e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a]));
+      title.paint?.[name]?.(title.model, e);
+      if (lifted(e)) e.callInside(script, label, e => { if (gives(e)) e.emit(result(name, e)); });
+    };
   }
   // The game's code in memory where its loader puts it, as the scenes read bytes of it: PART0 from the start, as the
   // panels' rows are read from it, and each part and problem as it is loaded.
