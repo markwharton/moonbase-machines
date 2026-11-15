@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.18.0] - 2026-11-15
+
+### Added
+
+- clean text draws each word in the game's own letters, without colour fringes (2674c31)
+- the screen can be painted as a monochrome monitor shows it (60b585c)
+- the Clean text setting replaces Old style text, on by default (5e21859)
+- the Monitor setting shows an Apple game on a colour or a monochrome monitor (9d4b40f)
+- play() puts the settings' controls in an element the page gives (781a8e3)
+
+### Fixed
+
+- the 64 sees only the last arrow key pressed (8dc1484)
+
 ## [v0.17.1] - 2026-11-15
 
 ### Fixed
@@ -229,3 +243,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.16.0]: https://github.com/markwharton/moonbase/compare/v0.15.0...v0.16.0
 [v0.17.0]: https://github.com/markwharton/moonbase/compare/v0.16.0...v0.17.0
 [v0.17.1]: https://github.com/markwharton/moonbase/compare/v0.17.0...v0.17.1
+[v0.18.0]: https://github.com/markwharton/moonbase/compare/v0.17.1...v0.18.0
