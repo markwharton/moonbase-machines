@@ -401,5 +401,11 @@ export function vectorRoutines(title) {
       e.a = e.flags(err); e.c = err ? 1 : 0;
     },
   };
+  // A problem's own routine that draws (the map's `problems`): its step, and the title's painter for it (paint.js),
+  // which paints it into the model of the original's screen and does what it does to memory.
+  for (const own of Object.values(title.map.problems ?? {})) for (const name of Object.values(own)) {
+    if (name.startsWith('.') || routines[name]) continue;
+    routines[name] = (e, args) => { inputs(e, name, args); e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a])); title.paint?.[name]?.(title.model, e); };
+  }
   return routines;
 }
