@@ -128,8 +128,9 @@ loopend:  RTS
 `);
 const at = (program, name) => program.symbols.get(name);
 // The title's map: the toolkit's routines, the title's own in problem 1 (two of them open to the view), the scroll's
-// two view steps, and where the random routine's seed goes.
-const vectorTitle = (options = {}) => {
+// two view steps, where the random routine's seed goes, and the steps the title defines itself: the turn of its own
+// loop and the jump. `steps` puts other definitions over those.
+const vectorTitle = ({ steps = {}, ...options } = {}) => {
   const m = machine(VECTOR), a = name => at(VECTOR, name), file = (from, to) => ({ data: b64(m.mem.slice(from, to)) });
   const game = { volumes: { TEST: { PART0: file(0x4000, a('kitend')), PROB1: file(0x6000, 0x6020), SCROLL: { aux: 0x7000, ...file(0x7000, 0x7010) } } } };
   const map = {
@@ -139,6 +140,7 @@ const vectorTitle = (options = {}) => {
       [a('show')]: 'show', [a('flash')]: 'flash', [a('random')]: 'random', [a('tick')]: 'tick',
     },
     problems: { 1: { [a('shut')]: 'demo', [a('opened')]: 'edges', [a('jumper')]: 'jump' } },
+    steps: { tick: { gives: 'a', turn: true }, jump: { takes: 'a' }, ...steps },
     open: ['edges', 'jump'],
     view: { SCROLL: { [a('scroll')]: 'shift-down', [a('loop')]: { step: 'scroll', until: a('loopend') } } },
   };
@@ -289,12 +291,43 @@ test('with no seed, the random routine\'s seed is the game\'s own', () => {
 
 test('a vector title is ticking while a turn of its own loop runs', () => {
   const { m, o, a } = vectorTitle();
-  assert.equal(o.ticking(), false);
+  assert.equal(o.ticking(), null);
   m.cpu.pc = a('ticks'); m.cpu.sp = 0xff;
   until(m, a('tick') + 2);
-  assert.equal(o.ticking(), true);
+  assert.equal(o.ticking(), 'tick');
   until(m, a('done'));
-  assert.equal(o.ticking(), false);
+  assert.equal(o.ticking(), null);
+});
+
+test('a call with a value of A its routine does nothing for is no step', () => {
+  const { m, events, a } = vectorTitle({ steps: { multiply: { takes: 'ax', gives: 'ax', nothing: 6 } } });
+  run(m, a('calls'), a('done'));
+  assert.deepEqual(events, [{ step: 'box', a: 1, x: 2, y: 3 }, { step: 'text', words: 'HI' }]);
+});
+
+test('a routine that polls for a key and gives it only with the carry set is no step with the carry clear', () => {
+  const { m, events, a } = vectorTitle({ steps: { 'read-key': { gives: 'a', polls: true, carry: true } } });
+  m.mem[0x10] = 0x41;
+  run(m, a('polls'), a('done'));
+  assert.deepEqual(events, []);
+});
+
+test('a routine that runs the game\'s own code is no routine running: the calls made while it runs are steps', () => {
+  const { m, o, events, a } = vectorTitle({ steps: { show: { runs: true } } });
+  m.cpu.pc = a('backs'); m.cpu.sp = 0xff;
+  until(m, a('callback'));
+  assert.equal(o.depth, 0);
+  until(m, a('done'));
+  assert.deepEqual(events.map(e => e.step ?? e.result), ['show', 'rectangle', 'multiply', 'multiply']);
+});
+
+test('a routine that has called the one that draws the space bar\'s button waits for the key', () => {
+  const { m, o, a } = vectorTitle({ steps: { rectangle: { button: true } } });
+  m.cpu.pc = a('calls'); m.cpu.sp = 0xff;
+  until(m, a('rect'));
+  m.cpu.step();
+  assert.equal(o.running, 'box');
+  assert.ok(o.waits());
 });
 
 // A card title's scene and toolkit. The print routine returns past its text, which ends in a zero. The drop routine
@@ -376,7 +409,14 @@ turn:     LDA #1
 *= $AD00
 scene:    .byte 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 `);
-// The key reader counts its wait at $4E and $4F, where the seed goes.
+// The key reader counts its wait at $4E and $4F, where the seed goes. The title defines the steps of its toolkit: the
+// cout and outport routines are the Monitor's, and the Apple's own.
+const print = (read, at) => { let s = '', i = at; for (;;) { const c = read(i++); if (!c) break; s += String.fromCharCode(c & 0x7f); } return { length: i - at, value: s }; };
+const CARD_STEPS = {
+  print: { takes: 'axyc', inline: print, text: true }, take: { takes: 'y', gives: 'a', waits: true }, drop: { takes: 'y', gives: 'a', waits: true },
+  restart: { leaves: true }, 'read-key': { gives: 'a', waits: true, seed: true }, 'wipe-rows': { takes: 'a' }, arrow: { takes: 'a' },
+  effect: { takes: 'a' }, 'action-cards': { takes: 'a' }, 'text-card': { takes: 'a' }, 'load-picture': { takes: 'a' },
+};
 const cardTitle = (options = {}) => {
   const m = machine(CARD), a = name => at(CARD, name), events = [];
   const map = {
@@ -387,8 +427,9 @@ const cardTitle = (options = {}) => {
       [a('entry')]: 'cout', [a('body')]: 'cout', [a('textcard')]: 'text-card', [a('picture')]: 'load-picture',
       [a('entry2')]: 'outport', [a('body2')]: 'outport',
     },
+    steps: CARD_STEPS,
     stir: { from: a('stirs'), to: a('stirdone') - 1, done: a('stirdone'), counts: [] },
-    ticks: [{ at: a('turn'), scene: 'SCENE' }],
+    ticks: [{ at: a('turn'), scene: 'SCENE', step: 'tick' }],
   };
   const game = { volumes: { DISK: { SCENE: { data: b64(m.mem.slice(0xad00, 0xad10)) } } } };
   const o = observe(m, map, { kind: 'card', game, emit: e => events.push(e), ...options });
@@ -457,9 +498,9 @@ test('a card title\'s tick stops the processor, and it is ticking until the run 
   m.cpu.step();
   assert.deepEqual(events, [{ step: 'tick' }]);
   assert.equal(m.cpu.pc, a('turn'), 'the read waits');
-  assert.equal(o.ticking(), true);
+  assert.equal(o.ticking(), 'tick');
   m.cpu.step();
-  assert.equal(o.ticking(), false);
+  assert.equal(o.ticking(), null);
   assert.equal(m.cpu.pc, a('turn') + 2, 'the read goes on');
 });
 

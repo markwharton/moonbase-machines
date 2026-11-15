@@ -2,10 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lift, script } from '../remake/lift.js';
+import { STEPS } from '@moonbase-machines/vector/steps.js';
 
-const lines = (code, routines, options) => {
+// The vector toolkit's steps, and a title's own that takes A.
+const steps = { ...STEPS, jump: { takes: 'a' } };
+const lines = (code, routines) => {
   const bytes = Uint8Array.from(code);
-  return script(lift(bytes, 0x0800, [0x0800], routines), bytes, 0x0800, options).split('\n').filter(l => /^[0-9A-F]{4} /.test(l));
+  return script(lift(bytes, 0x0800, [0x0800], routines, new Set(), steps), bytes, 0x0800, { steps }).split('\n').filter(l => /^[0-9A-F]{4} /.test(l));
 };
 
 test('a jump to a routine is its step, and a return at the jump', () => {

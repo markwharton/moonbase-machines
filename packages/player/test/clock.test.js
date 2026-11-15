@@ -45,7 +45,7 @@ const game = ({ waits = [], turns = 0 } = {}) => ({
       this.time++;
       if (!this.clock.free) this.clock.owed -= 1;
       if (waits.includes(this.time)) { this.waitingOn = { words: ['wait'] }; return 'idle'; }
-      if (turns && this.time % turns === 0) { this.waitingOn = { words: ['tick'] }; return 'idle'; }
+      if (turns && this.time % turns === 0) { this.waitingOn = { words: ['tick'], turn: true }; return 'idle'; }
       if (!this.clock.free && this.clock.owed <= 0) return 'frame';
     }
     return 'steps';

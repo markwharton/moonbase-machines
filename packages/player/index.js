@@ -18,7 +18,6 @@ export * as diskDisk from './disk/disk.js';
 export * as diskLocal from './disk/local.js';
 export * as diskMemory from './disk/memory.js';
 export * as remakeCardView from './remake/card-view.js';
-export * as remakeCards from './remake/cards.js';
 export * as remakeClock from './remake/clock.js';
 export * as remakeEvents from './remake/events.js';
 export * as remakeFixes from './remake/fixes.js';

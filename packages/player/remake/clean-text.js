@@ -11,13 +11,13 @@
 //   { font }              The title draws characters on the 40 by 24 grid from a font of 8 bytes a character,
 //                         indexed by ASCII code, at `font`. A cell that matches a character of the font is text
 //                         (@moonbase-machines/apple2e/hires-text.js), and its own dots are painted again.
-//   { shapes, widths }    The toolkit's `print` draws words from an Applesoft shape table at `shapes`, moving on by
-//                         a width from the table at `widths`. The printed words are kept (`apply`), and each is
-//                         painted again wherever all its dots are on the screen: its box in the colour around it,
-//                         then its dots. The cursor stays as it is.
+//   { shapes, widths }    The toolkit's routine that prints (its step's `prints`, events.js) draws words from an
+//                         Applesoft shape table at `shapes`, moving on by a width from the table at `widths`. The
+//                         printed words are kept (`apply`), and each is painted again wherever all its dots are on
+//                         the screen: its box in the colour around it, then its dots. The cursor stays as it is.
 // The text screen, and the four text rows of the mixed screen, already have no fringe, so they are left as they are.
 //
-//   const clean = new CleanText(engine, text)
+//   const clean = new CleanText(engine, text)   `engine` the game (game.js): its memory and its steps
 //   clean.apply(event)              keeps a printed word
 //   clean.paint(screen, page, px)   paints the words on the hi-res page at `page` onto px, the screen's 560 by 384
 //                                   pixels as paintHires painted them
@@ -32,15 +32,15 @@ const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
 
 export class CleanText {
   constructor(engine, text) {
-    this.mem = engine.mem;
+    this.mem = engine.mem; this.steps = engine.steps ?? {};
     this.text = text;
     this.read = text.font !== undefined ? reader(engine.mem, { font: text.font }) : null;
     this.prints = [];
   }
 
-  // A print event gives the word's x in X (low) and Y (high), and its top in A (events.js `print: 'axyc'`).
+  // A print event gives the word's x in X (low) and Y (high), and its top in A (its step's `takes`, 'axyc').
   apply(e) {
-    if (e.step !== 'print' || this.text.shapes === undefined) return;
+    if (!this.steps[e.step]?.prints || this.text.shapes === undefined) return;
     if (e.c || e.words === '#') return;   // the cursor: drawn with XDRAW, or the font's #, a solid block
     const x = e.x | e.y << 8, y = e.a, words = e.words.trimEnd();
     this.prints = this.prints.filter(p => !(p.y === y && Math.abs(p.x - x) < SAME_PLACE));

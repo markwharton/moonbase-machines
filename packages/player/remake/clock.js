@@ -5,10 +5,10 @@
 // fast, and at 0 it runs until it waits. A wait for a key is the player's time, which no frame owes: the frame after
 // the key owes a frame's worth from there. What the game did is heard only at pace 1.
 //
-// A game that goes on without waiting for keys has each turn of its loop as a step `tick`. A turn takes the key
-// pressed since the last turn (`keys.tapped`) or the key still held (`keys.held`), or none, as the Apple's keyboard
-// told the game a key was down. The turns go on to the frame's end, each taking the time its own code takes. At pace
-// 0 there is one turn a frame.
+// A game that goes on without waiting for keys has each turn of its loop as a step, and waits at each turn
+// (game.js `waitingOn`, with `turn`). A turn takes the key pressed since the last turn (`keys.tapped`) or the key still
+// held (`keys.held`), or none, as the Apple's keyboard told the game a key was down. The turns go on to the frame's
+// end, each taking the time its own code takes. At pace 0 there is one turn a frame.
 //
 //   const c = clock(engine, { pace })   `engine` the game (game.js); `pace()` the page's pace, read each frame
 //   c.frame()                           a frame: { ran, heard }, whether the game ran and whether what it did is heard
@@ -46,7 +46,7 @@ export function toWait(engine) {
 
 export function clock(engine, { pace = () => 1 } = {}) {
   const keys = { held: null, tapped: null };
-  const ticking = () => engine.waitingOn?.words?.[0] === 'tick';
+  const ticking = () => !!engine.waitingOn?.turn;
   const turn = () => { engine.press(keys.tapped ?? keys.held ?? -1); keys.tapped = null; };
   const time = engine.clock;
   let waiting = false;

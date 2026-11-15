@@ -12,7 +12,9 @@
 //   game.on(event => ...)              each event: a step of the transcript, or one of the view's own (`inside`)
 //   game.onKey(key => ...)             each key as it goes to the game; returns a function that stops it
 //   game.mem            the memory the game runs in
-//   game.waitingOn      the step the game waits in, as { words: [its name] }, or null
+//   game.steps          the title's steps, each by its name with its definition (observer.js `stepsOf`, events.js)
+//   game.waitingOn      the step the game waits in, as { words: [its name] }, with `turn` true for a turn of the
+//                       game's own loop; or null
 //   game.cycles, game.clicks           the machine's time, and the cycle of each click of its speaker
 //   game.took           each outermost step's event to the time its routine took, in milliseconds
 //   game.untimed        the stretches of cycles that ran at warp, for the speaker to leave out
@@ -30,9 +32,8 @@
 // since its last key is owed: the game is going on, and that time is the game's. A title's own routine that waits
 // keeps its time, as a loop of the game's own does: it may blink or draw between its reads of the keyboard.
 import { Machine } from '@moonbase-machines/apple2e/machine.js';
-import { observe, returnTo } from './observer.js';
+import { observe, returnTo, stepsOf } from './observer.js';
 import { Clock } from './clock.js';
-import { WAITS } from './events.js';
 
 // the Apple's clock, its cycles in a millisecond
 const CYCLES_PER_MS = 1020.484;
@@ -49,11 +50,12 @@ const KINDS = {
   vector(game) {
     const m = game.m;
     m.lc.aux[1] = m.aux.subarray(0xd000, 0xe000); m.lc.aux[2] = m.aux.subarray(0xe000);
-    // The ask ($641B in one title) takes a key, then waits for RETURN to confirm it or DELETE to take it back. The
-    // view shows which: `askMode` is the ask's mode, its A as it starts, and `asked` the place of the key chosen, or
-    // null while none is. The ask draws the caps of the keys it wants itself. It draws RETURN's cap only once a key is
-    // chosen, so its own call to the key routine says a choice has been made. The key is the last one pressed.
-    const ASKS = new Set(['ask', 'ask-mode', 'ask-escape']), ARROWS = [8, 21, 10, 11];
+    // An ask (its step's `ask`) takes a key, then waits for RETURN to confirm it or DELETE to take it back. The view
+    // shows which: `askMode` is the ask's mode, its A as it starts, and `asked` the place of the key chosen, or null
+    // while none is. The ask draws the caps of the keys it wants itself. It draws RETURN's cap only once a key is
+    // chosen, so its own call of the routine that draws a cap (`cap`) says a choice has been made. The key is the last
+    // one pressed.
+    const ARROWS = [8, 21, 10, 11];
     // the title's own routines, by name: those of its problems
     const own = new Set(Object.values(game.title.map.problems ?? {}).flatMap(r => Object.values(r)).map(full => full.split(' ')[0]));
     const place = (mode, k) => mode === 0x80 ? ARROWS.indexOf(k) : mode >= 0xb1 && mode < 0xba ? k - 0x31 : (k & 0x5f) - 0x41;
@@ -62,11 +64,11 @@ const KINDS = {
     game.askMode = 0; game.asked = null;
     return {
       mem: m.aux,
-      enter(event) { if (ASKS.has(event.step)) { asking = event; game.askMode = event.a; game.asked = null; } },
+      enter(event) { if (game.steps[event.step]?.ask) { asking = event; game.askMode = event.a; game.asked = null; } },
       leave(event) { if (event === asking) { asking = null; game.asked = null; } },
-      tap(name, c) { if (asking && name === 'key' && c.a !== 0x7f) game.asked = c.a === 0x0d ? { place: place(game.askMode, game.key) } : null; },
-      // The toolkit's routines that wait for a key run flat out (above). A turn of the game's loop is no wait.
-      frees: event => WAITS.has(event.step) && event.step !== 'tick' && !own.has(event.step),
+      tap(name, c) { if (asking && game.steps[name]?.cap && c.a !== 0x7f) game.asked = c.a === 0x0d ? { place: place(game.askMode, game.key) } : null; },
+      // The toolkit's routines that wait for a key run flat out (above).
+      frees: event => !!game.steps[event.step]?.waits && !own.has(event.step),
       // Before the toolkit is in memory the game's loader waits for a key, with its splash on the screen.
       splash: !!game.title.map.splash,
     };
@@ -94,6 +96,7 @@ export class Game {
     this.took = new WeakMap();
     // the game's files, for what it saves and for a disk taken out of its drive
     title.files = m.disk;
+    this.steps = stepsOf(title.engine, title.map);
     const kind = this.kind = KINDS[title.engine](this);
     this.mem = kind.mem;
     // each step running: the cycle it started at, and whether the clock warped before it
@@ -104,7 +107,7 @@ export class Game {
       enter: event => {
         starts.set(event, { from: m.cpu.cycles, warp: clock.warp });
         // a routine that waits for a key ends the turns of a game's own loop
-        if (WAITS.has(event.step) && event.step !== 'tick') this.turning = false;
+        if (this.steps[event.step]?.waits) this.turning = false;
         if (!this.waiter && kind.frees?.(event)) this.waiter = { event, from: m.cpu.cycles };
         // a step inside one that warps warps with it
         clock.warp = clock.warp || this.warps(event);
@@ -122,7 +125,7 @@ export class Game {
           this.waiter = null;
         }
         // a turn has been taken: the game is in its own loop until it next waits for a key
-        if (event.step === 'tick') this.turning = true;
+        if (this.steps[event.step]?.turn) this.turning = true;
         kind.leave?.(event);
       },
       left: () => { this.turning = false; this.waiter = null; clock.warp = false; },
@@ -195,18 +198,20 @@ export class Game {
     if (m.halted) throw new Error('the game has stopped: ' + m.halted);
     return 'steps';
   }
-  // The game waits for a key: in the routine running, in a loop of its own that polls the keyboard, or, before any
-  // event, in its loader, with the splash on the screen.
+  // The game waits for a key: at a turn of its own loop, in the routine running, in a loop of its own that polls the
+  // keyboard, or, before any event, in its loader, with the splash on the screen. A wait in a loop of the game's own is
+  // named read-key, and the loader's wait is named splash.
   waits() {
     const o = this.observer, splash = !this.begun && this.kind.splash;
     if (splash && !this.splashed) { this.splashed = true; this.emit({ step: 'splash', inside: true }); }
     // (a routine with no step of its own, one whose name starts with a dot, waits as a loop of the game's own does)
-    const name = o.ticking() ? 'tick' : o.depth > 0 && o.running ? o.running : splash ? 'splash' : 'read-key';
-    if (name !== 'tick') this.turning = false;
+    const turn = o.ticking();
+    const name = turn ?? (o.depth > 0 && o.running ? o.running : splash ? 'splash' : 'read-key');
+    if (!turn) this.turning = false;
     // the polls that found the wait are no part of the game's sound
     const from = o.since?.() ?? this.polled;
     if (from !== null) this.untimed.push([from, this.m.cpu.cycles]);
-    this.waitingOn = { words: [name] };
+    this.waitingOn = turn ? { words: [name], turn: true } : { words: [name] };
     return 'idle';
   }
 }

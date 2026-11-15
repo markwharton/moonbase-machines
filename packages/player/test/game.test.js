@@ -47,9 +47,11 @@ take:     LDA $C000
           AND #$7F
           RTS
 `);
+// The card games' steps, as a title's map defines its own.
+const STEPS = { arrow: { takes: 'a' }, unpack: { takes: 'y' }, take: { takes: 'y', gives: 'a', waits: true } };
 const cardGame = () => {
   const a = name => CARD.symbols.get(name);
-  const game = new Game({ engine: 'card', disk: disk(CARD.bytes), map: { routines: { [a('arrow')]: 'arrow', [a('unpack')]: 'unpack', [a('take')]: 'take' } } });
+  const game = new Game({ engine: 'card', disk: disk(CARD.bytes), map: { routines: { [a('arrow')]: 'arrow', [a('unpack')]: 'unpack', [a('take')]: 'take' }, steps: STEPS } });
   const events = [];
   game.on(e => events.push(e));
   return { game, events };
@@ -125,7 +127,7 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} and ${b}`);
 const nearWait = (a, b) => assert.ok(Math.abs(a - b) <= 4 / CYCLES_PER_MS + 1e-9, `${a} and ${b}`);
 const timedGame = (entry, { clock, warp } = {}) => {
   const program = timed(entry), a = name => program.symbols.get(name);
-  const map = { routines: { [a('long')]: 'unpack', [a('take')]: 'take' } };
+  const map = { routines: { [a('long')]: 'unpack', [a('take')]: 'take' }, steps: STEPS };
   const game = new Game({ engine: 'card', disk: disk(program.bytes), map, warp }, clock ? { clock } : {});
   const events = [];
   game.on(e => events.push(e));
@@ -198,13 +200,13 @@ const SCENE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 test('a card game stops at a turn of its own loop, and goes on with no key', () => {
   const a = name => TURN.symbols.get(name);
   const files = { SCENE: { type: 'BIN', aux: 0xad00, size: SCENE.length, data: b64(SCENE) } };
-  const map = { routines: { [a('take')]: 'take' }, ticks: [{ at: a('turn'), scene: 'SCENE' }] };
+  const map = { routines: { [a('take')]: 'take' }, steps: STEPS, ticks: [{ at: a('turn'), scene: 'SCENE', step: 'tick' }] };
   const game = new Game({ engine: 'card', disk: disk(TURN.bytes, files), map });
   game.m.main.set(SCENE, 0xad00);
   const events = [];
   game.on(e => events.push(e));
   assert.equal(game.run(), 'idle');
-  assert.deepEqual(game.waitingOn, { words: ['tick'] });
+  assert.deepEqual(game.waitingOn, { words: ['tick'], turn: true });
   assert.deepEqual(events, [{ step: 'tick' }]);
   game.press(-1);
   assert.equal(game.run(), 'idle');
@@ -229,7 +231,7 @@ take:     LDA $C000
 `);
 
 test('a routine answered by a hook that counts its own cycles spends all of its time', () => {
-  const map = { routines: { 0xfca8: 'pause', [PAUSE.symbols.get('take')]: 'take' } };
+  const map = { routines: { 0xfca8: 'pause', [PAUSE.symbols.get('take')]: 'take' }, steps: STEPS };
   const clock = new Clock();
   clock.tick(50);
   const game = new Game({ engine: 'card', disk: disk(PAUSE.bytes), map }, { clock });
@@ -248,7 +250,7 @@ test('a routine answered by a hook that counts its own cycles spends all of its 
 // a key it wants, waits for the choice, draws RETURN's cap, and waits for RETURN. The tick is a turn of the game's own
 // loop, which reads the keyboard without waiting. The wait waits for a key, and the fill draws for a while. The title's
 // own routines are a problem's file at $6000: `edges` calls the fill and then works on its own, and `which-box` waits
-// for a key. The map opens `edges` to the view.
+// for a key. The map opens `edges` to the view, and defines the steps of the title's own: the turn and `which-box`.
 const ASKS = `
           LDA #0
           JSR ask
@@ -322,6 +324,7 @@ const vectorGame = ({ splash = false, scene = ASKS, warp, clock } = {}) => {
   const map = {
     volume: 'GAME', vars: { zero: 0 }, routines, loads: { PROB: 0x6000 },
     problems: { 1: { [a('edges')]: 'edges', [a('whichbox')]: 'which-box' } }, open: ['edges'],
+    steps: { tick: { gives: 'a', turn: true }, 'which-box': { gives: 'xy', waits: true } },
     ...splash ? { splash: true } : {},
   };
   const game = new Game({ engine: 'vector', disk: disk(image.slice(0x2000, a('sysend')), files), map, warp }, clock ? { clock } : {});
@@ -488,11 +491,11 @@ test('the game is turning from a turn\'s end until it waits, and a warp can read
   const { game, load } = vectorGame({ scene: TURNS, warp });
   load();
   assert.equal(game.run(), 'idle');
-  assert.deepEqual(game.waitingOn, { words: ['tick'] });
+  assert.deepEqual(game.waitingOn, { words: ['tick'], turn: true });
   assert.equal(game.turning, false, 'the first turn has not ended');
   game.press(-1);
   assert.equal(game.run(), 'idle');
-  assert.deepEqual(game.waitingOn, { words: ['tick'] });
+  assert.deepEqual(game.waitingOn, { words: ['tick'], turn: true });
   assert.equal(game.turning, true);
   game.press(-1);
   assert.equal(game.run(), 'idle');

@@ -45,13 +45,14 @@ title runs in main memory, and its `title.screen` is the machine's soft switches
 
 The machine counts the polls of the keyboard that find no key. When there have been 2,000, the observer says whether
 the game waits for a key or is busy. A routine that polls the keyboard while it works is busy, and the run goes on
-through it. `game.waitingOn` names the routine the game waits in, or `tick` for a turn of a loop of the game's own
-that reads the keyboard without waiting.
+through it. `game.waitingOn` names the routine the game waits in. At a turn of a loop of the game's own that reads
+the keyboard without waiting, it names the turn's step and has `turn` set.
 
 ## The map
 
 A title's `map` (its `title.js`) names the routines its code calls, by address, each with the name of the event a
-call makes (`routines`). The rest of the map is what the toolkit's rules need beside them:
+call makes (`routines`), and defines the steps of its own (`steps`). The rest of the map is what the toolkit's rules
+need beside them:
 
 - **A vector title:** its disk's volume (`volume`); where its files load, when the disk's catalog has lost it
   (`loads`); the routine that sets the table of objects (`objects`); where the random routine keeps its seed
@@ -61,12 +62,20 @@ call makes (`routines`). The rest of the map is what the toolkit's rules need be
   (`open`); places in the code where the screen changes with no routine called (`view`); a splash the loader shows
   before the toolkit is in memory (`splash`); and characters a modern font would draw wrongly (`modern`).
 - **A card title:** where the key reader takes the random routine's seed from (`seed`); a wait for a key that stirs
-  the random routine as it polls (`stir`); a loop of the game's own that reads the keyboard each turn (`ticks`); and
-  a toolkit's sections file (`sections`).
+  the random routine as it polls (`stir`); and each loop of the game's own that reads the keyboard each turn, with
+  the name of the step a turn is (`ticks`).
 
-`events.js` says what each routine's call is as an event, in the same words for the original and the remake.
-`cards.js` has what the card toolkit's routines take inline after the call, and the Commodore 64's KERNAL as a map
-names it.
+## The steps
+
+A step's definition says what its routine takes and gives, and what part it plays, such as waiting for keys or never
+returning. `events.js` says what each field means, and makes a call into an event by its definition (`describe`,
+`result`), in the same words for the original and the remake.
+
+Each definition lives with what it belongs to. The vector toolkit's steps are `@moonbase-machines/vector/steps.js`,
+the Apple's ROM's and ProDOS's are `@moonbase-machines/apple2e/steps.js`, and the Commodore 64's KERNAL's, with its
+jump table by address, are `@moonbase-machines/c64/steps.js`. A title's own steps are its map's `steps`. The observer
+takes its kind's steps with the map's own over them (`stepsOf`), and reads each routine's part from its definition,
+never from its name.
 
 ## The observer
 
@@ -152,12 +161,11 @@ for routine, playing the game's data as the original read it.
 |---|---|
 | `game.js` | the title's game on its machine, as the engine the page drives |
 | `observer.js` | the machine's run as events, by the title's map |
-| `events.js` | what each routine's call is as an event, in the same words for the original and the remake |
-| `cards.js` | what the card toolkit's routines take inline, a toolkit's sections file, and the Commodore 64's KERNAL as a map names it |
+| `events.js` | what a step's definition holds, and each routine's call as an event by it, in the same words for the original and the remake |
 | `clock.js` | the clock: a tick a frame, warp, and the page's pace |
 | `fixes.js` | a title's fixes, made to its program on the disk |
 | `load.js` | loads a title's folder and its game's data, and makes its game |
 | `view.js`, `layout.js` | a vector title's view, as SVG; its text laid out as the toolkit laid it out |
 | `card-view.js`, `clean-text.js` | a card title's view, the machine's screen; its words painted clean |
 | `faces.js` | the faces every view draws clean text in |
-| `lift.js` | the lifter: a file's 6502 walked from its entries into a listing, for a tool to print |
+| `lift.js` | the lifter: a file's 6502 walked from its entries into a listing, for a tool to print, by the title's steps |

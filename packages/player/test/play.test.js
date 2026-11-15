@@ -293,7 +293,7 @@ test('clean text paints a printed word\'s dots in one colour on the colour aroun
   mem.set([0x0d, 0x05, 0x00], SHAPE);
   // ("AA" printed at 10, 50: its dots at 10, 12, 14 and 16 on row 50, as the toolkit drew them)
   for (const x of [10, 12, 14, 16]) lit(x, 50);
-  const clean = new CleanText({ mem }, { shapes: SHAPES, widths: WIDTHS });
+  const clean = new CleanText({ mem, steps: { print: { prints: true } } }, { shapes: SHAPES, widths: WIDTHS });
   clean.apply({ step: 'print', x: 10, y: 0, a: 50, c: 0, words: 'AA' });
   const before = pixels(), px = pixels();
   clean.paint({ text: false, mixed: false }, page, px);

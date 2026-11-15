@@ -1,19 +1,21 @@
 // The lifter: a file's 6502 walked from its entries into a listing, and into a script, a step or a statement to a line,
-// for a tool to print.
+// for a tool to print. It is given the steps of the title's map, each by its name with its definition (events.js): what
+// each routine takes in its registers and after its call.
 import { OPS, SIZE, operand, hex } from '@moonbase-machines/mos6502/disasm.js';
-import { INLINE as READERS } from '@moonbase-machines/vector/inline.js';
-import { TAKES } from './events.js';
 
-// the data after a call, read from the file, with the text quoted so that it reads as one word, and DEL written as
-// \u007f as JSON writes the other control characters; `mark` names a byte the code writes by its address
-// (@moonbase-machines/vector/inline.js)
-export const readers = from => Object.fromEntries(Object.entries(from).map(([k, f]) => [k, (b, at, mark) => { const r = f(i => b[i], at, mark); return { length: r.length, words: k === 'text' || k === 'print' || k === 'say' ? JSON.stringify(r.value).replace(/\x7f/g, '\\u007f') : r.value }; }]));
-const INLINE = readers(READERS);
+// The data after a call, read from the file by its step's reader (`inline`), or undefined for a step that takes none.
+// A text (`text`) is quoted so that it reads as one word, and DEL is written as \u007f, as JSON writes the other
+// control characters. `mark` names a byte the code writes by its address (@moonbase-machines/vector/inline.js).
+const dataAfter = (steps, name, bytes, at, mark) => {
+  const step = steps[name];
+  if (!step?.inline) return undefined;
+  const r = step.inline(i => bytes[i], at, mark);
+  return { length: r.length, words: step.text ? JSON.stringify(r.value).replace(/\x7f/g, '\\u007f') : r.value };
+};
 
 // `stops` are addresses where data begins that is not a table of code addresses, the objects'
 // tables and the objects themselves, so that a table of addresses read from the code ends there.
-export function lift(bytes, origin, entries, routines, stops = new Set(), inline = INLINE) {
-  const INLINE = inline;
+export function lift(bytes, origin, entries, routines, stops = new Set(), steps = {}) {
   // `seen`: every byte an instruction or its data takes, for what is left as data; an instruction
   // is walked from where it starts, which may be inside another's bytes (the BIT that skips)
   const lines = new Map(), targets = new Set(entries), seen = new Set(), queue = [...entries];
@@ -36,7 +38,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
       if (op.mode === 'imm' && 'LDA LDX LDY'.includes(op.name)) regs[op.name[2]] = bytes[at + 1];
       else if (op.name.startsWith('T') || op.name.startsWith('IN') || op.name.startsWith('DE') || op.name.startsWith('LD') || op.name === 'PLA') delete regs[op.name.at(-1)];
       if (op.name === 'JSR' && routines[word]) {
-        const r = routines[word], data = INLINE[r]?.(bytes, next - origin);
+        const r = routines[word], data = dataAfter(steps, r, bytes, next - origin);
         const args = ['A', 'X', 'Y'].map(k => regs[k] === undefined ? '' : k + '=' + regs[k]).filter(Boolean).join(' ');
         line = r + (data ? ' ' + data.words : '') + (args && !data ? '   ; ' + args : '');
         if (data) next += data.length;
@@ -66,7 +68,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
         }
       }
       const tail = op.name === 'JMP' && op.mode === 'abs' && !inFile(word) && !!routines[word];
-      const call = op.name === 'JSR' && routines[word] ? { name: routines[word], words: INLINE[routines[word]]?.(bytes, pc + 3 - origin)?.words } : tail ? { name: routines[word], tail } : null;
+      const call = op.name === 'JSR' && routines[word] ? { name: routines[word], words: dataAfter(steps, routines[word], bytes, pc + 3 - origin)?.words } : tail ? { name: routines[word], tail } : null;
       lines.set(pc, { line, end: next, op: op.name, mode: op.mode, value: size === 2 ? bytes[at + 1] : word, call, stop });
       for (let a = pc + 1; a < next; a++) seen.add(a);
       if (stop) break;
@@ -82,7 +84,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
     if (r.call?.words === undefined) continue;
     const start = pc + 3;
     const mark = (i, byte) => { const a = i + origin; if (written.has(a) || indexed.some(b => b >= start && b <= a)) return byte ? '$' + hex(a, 4) : '{$' + hex(a, 4) + '}'; };
-    const words = INLINE[r.call.name]?.(bytes, start - origin, mark)?.words;
+    const words = dataAfter(steps, r.call.name, bytes, start - origin, mark)?.words;
     if (words === undefined || words === r.call.words) continue;
     r.line = r.line.replace(r.call.words, words); r.call.words = words;
   }
@@ -108,8 +110,8 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
 // a compare and the branch after it are one `if a == 1 goto L8157`, and a branch alone tests a
 // flag, `if zero goto L8157`. A jump through a table that the code writes into its own JMP is
 // `goto [$86EC y]`. The bytes the walk never reached are kept as `data` lines, up to where the
-// objects' tables begin: the objects come from those tables instead.
-export function script({ lines, targets, left }, bytes, origin, { stops = new Set(), selfModified = false, memory = false, moved = [] } = {}) {
+// objects' tables begin: the objects come from those tables instead. `steps` are the steps lift was given.
+export function script({ lines, targets, left }, bytes, origin, { steps = {}, stops = new Set(), selfModified = false, memory = false, moved = [] } = {}) {
   const H = (n, w = 4) => '$' + hex(n, w);
   // With `selfModified`, an instruction whose operand the code writes as it runs takes it from
   // memory: an immediate is the byte at its own address, an address is [$0D19], the one the code
@@ -164,14 +166,15 @@ export function script({ lines, targets, left }, bytes, origin, { stops = new Se
     const reg = r.op.at(-1).toLowerCase();
     if (r.call) {
       const [name, ...fixed] = r.call.name.split(' ');
-      const takes = TAKES[name] || '';
+      const step = steps[name] ?? {}, takes = step.takes || '';
       const given = Object.fromEntries(loads.map(([, g, v]) => [g, v]));
       // loads the call does not take stay as statements, before it
       const kept = loads.filter(([, g]) => !takes.includes(g)); loads = kept; flush();
       const args = [...fixed, ...[...takes].map(g => given[g] ?? g)];
-      if (name === 'objects' && given.x !== undefined && given.y !== undefined) args.splice(fixed.length, 2, H(given.x | given.y << 8));
-      // (a key cap's character, quoted for one with its high bit set, as the Remake gives it back, else its number)
-      if (name === 'key-at' || name === 'key') args[0] = given.a === undefined ? args[0] : given.a & 0x80 ? JSON.stringify(String.fromCharCode(given.a & 0x7f)) : String(given.a);
+      // (a table's address in X and Y as one address)
+      if (step.table && given.x !== undefined && given.y !== undefined) args.splice(fixed.length, 2, H(given.x | given.y << 8));
+      // (a character in A, quoted for one with its high bit set, as the Remake gives it back, else its number)
+      if (step.character) args[0] = given.a === undefined ? args[0] : given.a & 0x80 ? JSON.stringify(String.fromCharCode(given.a & 0x7f)) : String(given.a);
       put([name, ...args, r.call.words ?? ''].join(' ').trim());
       // (a jump to the routine: its return is this code's, at the jump's own address)
       if (r.call.tail) put('return');

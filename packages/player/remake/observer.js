@@ -1,10 +1,12 @@
-// A game, observed. The game runs on its machine, and each call it makes into its toolkit's routines becomes an
-// event (events.js `describe`). A routine's result becomes an event at its return (`result`). Two runs are the same
-// when their events are. The observer is given the machine, the title's map and the game's data. It reads no files,
-// so it runs in a page as well as in the pilots.
+// A game, observed. The game runs on its machine, and each call it makes into a routine of its map becomes an event,
+// as the routine's step is defined (events.js `describe`). A routine's result becomes an event at its return
+// (`result`). Two runs are the same when their events are. The observer is given the machine, the title's map and the
+// game's data. It reads no files, so it runs in a page as well as in the pilots. It reads what part a routine plays
+// from its step's definition, and knows no step by its name.
 //
 //   const o = observe(m, map, { kind, game, seed, mine, started, emit, view, enter, leave, tap })
-//     kind       'vector' or 'card': the title's toolkit, which picks its rules (below)
+//     kind       'vector' or 'card': the title's toolkit, which picks its rules (below) and the steps defined for it
+//                (`stepsOf`)
 //     game       the game's data, for the routines that are there only while their file is in memory
 //     seed       the random seed, or a function that gives it; each toolkit's rules say where it goes. With none,
 //                the game's random numbers are its own
@@ -21,7 +23,8 @@
 //   o.depth      how deep the game is in the toolkit's routines
 //   o.running    the outermost routine running, or null
 //   o.waits()    with the machine idle, whether the game waits for a key; if not, it is busy and the run goes on
-//   o.ticking()  whether the run has stopped for a turn of the game's own loop, to be given a key or none
+//   o.ticking()  the step of the turn of the game's own loop that the run has stopped for, to be given a key or none;
+//                null while it has not
 //   o.mark()     for a vector title: a run starts, and with it the time of the key just pressed
 //   o.time()     for a vector title: the last key's time, in cycles
 //   o.since()    for a vector title: the cycle at which the routine running began to wait for a key, at its first
@@ -30,9 +33,16 @@
 //
 // A hook is a function the processor runs when it reaches an address (`m.cpu.hooks`). It returns false to let the
 // code there run, 'wait' to be run again at the next step, and anything else to return as RTS does.
-import { INLINE as VECTOR_INLINE } from '@moonbase-machines/vector/inline.js';
-import { INLINE as CARD_INLINE } from './cards.js';
-import { describe, result, GIVES, POLLS, WAITS, nothing } from './events.js';
+import { STEPS as VECTOR } from '@moonbase-machines/vector/steps.js';
+import { STEPS as APPLE } from '@moonbase-machines/apple2e/steps.js';
+import { describe, result } from './events.js';
+
+// The steps defined for every title of a kind, by its title.js `engine`: the vector toolkit's, and for a card title the
+// Apple's ROM and ProDOS.
+const KINDS = { vector: VECTOR, card: APPLE };
+// A title's steps, each by its name with its definition (events.js): its kind's, with its map's own over them.
+export const stepsOf = (kind, map) => ({ ...KINDS[kind], ...map.steps });
+const NONE = {};
 
 // Where a subroutine returns to, as RTS takes it from the stack.
 export const returnTo = c => ((c.read(0x100 + ((c.sp + 1) & 0xff)) | c.read(0x100 + ((c.sp + 2) & 0xff)) << 8) + 1) & 0xffff;
@@ -58,8 +68,11 @@ const bytes = data => Uint8Array.from(atob(data), ch => ch.charCodeAt(0));
 
 export function observe(m, map, options) {
   const { kind, game, mine = () => true, started = () => true, emit = () => {} } = options;
+  const steps = stepsOf(kind, map);
   const s = {
     m, map, game, mine, started, emit, options, view: !!options.view, tap: options.tap ?? (() => {}),
+    // A routine's step as it is defined, or with nothing defined.
+    step: name => steps[name] ?? NONE,
     // The seed, read when it is wanted: a page may be given a route's seed after the game has started.
     seed: () => typeof options.seed === 'function' ? options.seed() : options.seed,
     // How deep the game is in the toolkit's routines, the outermost routine running, and the event of its call.
@@ -107,15 +120,14 @@ export function observe(m, map, options) {
   };
 }
 
-// A call's event, with the data the routine takes inline after its call, and the address it returns to past that data.
-function called(c, name, fixed, regs, inline, zero) {
-  const after = returnTo(c), reader = inline[name], data = reader ? reader(a => c.read(a), after) : null;
-  return { event: describe(name, fixed, regs, data?.value, zero, a => c.read(a)), after, back: after + (data ? data.length : 0), inline: !!reader };
+// A call's event, as its step is defined, with the data the routine takes inline after its call, and the address it
+// returns to past that data.
+function called(c, name, step, fixed, regs, zero) {
+  const after = returnTo(c), data = step.inline ? step.inline(a => c.read(a), after) : null;
+  return { event: describe(name, step, fixed, regs, data?.value, zero, a => c.read(a)), after, back: after + (data ? data.length : 0), inline: !!step.inline };
 }
-
-// The vector toolkit's routines that run scene code of their own. The problem routine runs a problem and returns; the
-// part routine loads a part and never returns. The calls made while either runs are events.
-const VECTOR_THROUGH = new Set(['problem', 'part']);
+// Whether a routine that polls for a key gave one as it returned: a key in A, with the carry set for one that says so.
+const keyed = (step, r) => r.a && (!step.carry || r.c);
 
 // The vector toolkit's rules. The toolkit is PART0, at $4000 in auxiliary memory. Each problem is a file with routines
 // of its own, loaded where the map's `loads` says.
@@ -129,7 +141,8 @@ function vector(s) {
   const load = map.loads?.PROB ?? 0xf000;
   const problems = Object.fromEntries(Object.keys(map.problems ?? {}).map(n => [n, bytes(volume['PROB' + n].data)]));
   const problemIn = (n, a) => { const b = problems[n]; for (let i = 0; i < 8 && a - load + i < b.length; i++) if (m.read(a + i) !== b[a - load + i]) return false; return true; };
-  // Whether the routine running has drawn the space bar's button. A routine that has is about to wait for the key.
+  // Whether the routine running has called the routine that draws the space bar's button (`button`). A routine that
+  // has is about to wait for the key.
   let buttoned = false;
 
   // The view's own events (`view`). A view draws most routines itself, whole, from the routine's event alone. Some
@@ -151,15 +164,15 @@ function vector(s) {
     return byTitle && (!titles || open.has(inner.name));
   };
   const inside = event => { const given = { ...event, inside: true }; emit(given); return given; };
-  const within = (c, name, fixed) => {
+  const within = (c, name, step, fixed) => {
     shown.push({ name, to: returnTo(c) });
     const left = () => { shown.pop(); };
     if (name.startsWith('.')) { s.returned(returnTo(c), left); return; }
-    if (POLLS.has(name)) { s.returned(returnTo(c), r => { left(); if (r.a && (name !== 'blink-key' || r.c)) inside(result(name, r)); }); return; }
-    const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y }, VECTOR_INLINE, z => c.read(z + map.vars.zero));
+    if (step.polls) { s.returned(returnTo(c), r => { left(); if (keyed(step, r)) inside(result(name, step, r)); }); return; }
+    const { event, back } = called(c, name, step, fixed, { a: c.a, x: c.x, y: c.y }, z => c.read(z + map.vars.zero));
     const given = inside(event);
     s.options.enter?.(given);
-    s.returned(back, r => { left(); s.options.leave?.(given); if (GIVES[name]) inside(result(name, r)); });
+    s.returned(back, r => { left(); s.options.leave?.(given); if (step.gives) inside(result(name, step, r)); });
   };
 
   // The view's steps (the map's `view`, by the file they are in): places in the game's code where the screen
@@ -216,43 +229,46 @@ function vector(s) {
   for (const [n, own] of Object.entries(map.problems ?? {})) for (const [at, full] of Object.entries(own)) routines.push({ at: +at, full, present: a => problemIn(n, a) });
 
   // A key's time, for the pilots to hold the Remake's to. It runs from the read of the keyboard that takes the key, or
-  // from the run's start, to the first read that finds no key in a wait. A turn's start (`tick`) also ends it.
+  // from the run's start, to the first read that finds no key in a wait. A turn's start also ends it.
   const time = { from: null, to: null, start: 0, turn: null };
-  // Whether the routine running waits for a key: it is one that waits or polls for a key, or it has drawn the space
-  // bar's button.
-  const waiting = () => WAITS.has(s.running) || POLLS.has(s.running) || buttoned;
+  // Whether the routine running waits for a key: it is one that waits or polls for a key, or a turn of the game's own
+  // loop, or it has drawn the space bar's button.
+  const waiting = () => { const r = s.step(s.running); return !!(r.waits || r.polls || r.turn) || buttoned; };
 
-  // A call into the toolkit. A call to the button routine is noted while a routine runs, whoever makes it.
+  // A call into the toolkit. A call to the routine that draws the space bar's button is noted while a routine runs,
+  // whoever makes it. A call with a value of A that its routine does nothing for is no step.
   const call = (c, name, fixed, ours) => {
-    if (name === 'button' && s.depth > 0) buttoned = true;
-    if (!ours || nothing(name, c.a)) return;
+    const step = s.step(name);
+    if (step.button && s.depth > 0) buttoned = true;
+    if (!ours || step.nothing === c.a) return;
     s.tap(name, c);
-    if (s.inside()) { if (views(c)) within(c, name, fixed); return; }
+    if (s.inside()) { if (views(c)) within(c, name, step, fixed); return; }
     shown = [{ name, to: returnTo(c) }];
     // A routine whose name starts with a dot is no step. It makes no event, and the calls it makes are hidden.
     if (name.startsWith('.')) { s.depth++; s.returned(returnTo(c), s.returns); return; }
-    // The random routine takes the seed at its first call. The game grows the seed at each poll of the keyboard
-    // until then, so without this the seed would depend on how long the machine ran.
-    if (name === 'random' && m.read(map.seed.used) === 0xff) {
+    // The routine that takes the seed (`seed`) takes it at its first call, while the map's `seed.used` is $FF. The
+    // game grows the seed at each poll of the keyboard until then, so without this the seed would depend on how long
+    // the machine ran.
+    if (step.seed && m.read(map.seed.used) === 0xff) {
       const seed = s.seed();
       if (seed !== undefined) { m.write(map.seed.at, seed & 0xff); m.write(map.seed.at + 1, seed >> 8); }
     }
-    // A routine that polls the keyboard is a step only when it gives a key. The blink-key routine gives one only
-    // with the carry set.
-    if (POLLS.has(name)) {
+    // A routine that polls the keyboard is a step only when it gives a key.
+    if (step.polls) {
       s.depth++; s.begin(name, { step: name });
-      s.returned(returnTo(c), r => { s.returns(); if (r.a && (name !== 'blink-key' || r.c)) emit(result(name, r)); });
+      s.returned(returnTo(c), r => { s.returns(); if (keyed(step, r)) emit(result(name, step, r)); });
       return;
     }
-    const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y }, VECTOR_INLINE, z => c.read(z + map.vars.zero));
+    const { event, back } = called(c, name, step, fixed, { a: c.a, x: c.x, y: c.y }, z => c.read(z + map.vars.zero));
     emit(event);
-    if (name === 'part') return;
+    // A routine that never returns is given no return.
+    if (step.leaves) return;
     // A turn of the game's own loop reads the keyboard without waiting. The run stops here, for the pilot to give it a
     // key or none.
-    if (name === 'tick') { m.idle = Infinity; time.to ??= m.cpu.cycles; time.turn = m.cpu.cycles; }
-    const through = VECTOR_THROUGH.has(name);
-    if (!through) { s.depth++; s.begin(name, event); }
-    s.returned(back, r => { if (!through) s.returns(); if (GIVES[name]) emit(result(name, r)); });
+    if (step.turn) { m.idle = Infinity; time.to ??= m.cpu.cycles; time.turn = m.cpu.cycles; }
+    // A routine that runs the game's own code is not the routine running: the calls made while it runs are events.
+    if (!step.runs) { s.depth++; s.begin(name, event); }
+    s.returned(back, r => { if (!step.runs) s.returns(); if (step.gives) emit(result(name, step, r)); });
   };
 
   // Each instruction is watched for a read of the keyboard. The first read that finds a key starts the key's time. The
@@ -261,7 +277,7 @@ function vector(s) {
   const READS = new Set([0xad, 0xae, 0xac, 0x2c, 0xcd]), step = m.cpu.step.bind(m.cpu);
   m.cpu.step = () => {
     const pc = m.cpu.pc, reads = READS.has(m.read(pc)) && m.read((pc + 2) & 0xffff) === 0xc0 && m.read((pc + 1) & 0xffff) <= 0x10;
-    if (reads && !(m.key & 0x80) && s.depth > 0 && s.running !== 'tick' && waiting() && started()) time.to ??= m.cpu.cycles;
+    if (reads && !(m.key & 0x80) && s.depth > 0 && !s.step(s.running).turn && waiting() && started()) time.to ??= m.cpu.cycles;
     const had = !!(m.key & 0x80), cycles = step();
     if (reads && had && time.from === null && time.to === null) time.from = m.cpu.cycles;
     return cycles;
@@ -273,7 +289,7 @@ function vector(s) {
     // a view's step still running when the game leaves every routine is over
     left: () => { for (const done of [...running]) done(); },
     waits: () => s.depth === 0 || waiting(),
-    ticking: () => s.depth > 0 && s.running === 'tick',
+    ticking: () => s.depth > 0 && s.step(s.running).turn ? s.running : null,
     // After a turn, the next key's time runs from the turn's start. The run stopped one instruction past it.
     mark: () => { Object.assign(time, { from: null, to: null, start: time.turn ?? m.cpu.cycles, turn: null }); },
     time: () => (time.to ?? m.cpu.cycles) - (time.from ?? time.start),
@@ -282,9 +298,6 @@ function vector(s) {
   };
 }
 
-// The card toolkit's routines that go on as the game, with no return: the town's loop, a restart, and the escape
-// into the game's save, load and quit screens. Each leaves every routine.
-const CARD_THROUGH = new Set(['town', 'restart', 'escape']);
 // The Monitor's RDKEY, KEYIN and RDCHAR. The machine stays at one of them while it waits for a key.
 const RDKEY = new Set([0xfd0c, 0xfd1b, 0xfd35]);
 // Whether the machine is in the IIe's own ROM, which waits for a key in its keyboard routine at $C2DE.
@@ -294,19 +307,20 @@ const inRom = m => m.rom && m.cpu.pc >= 0xc100 && (m.cpu.pc < 0xd000 || !m.sw.lc
 function card(s) {
   const { m, map, game, started, emit } = s;
   // The key reader counts how long it waits for a key, at the map's `seed`, and the random routine can take its seed
-  // from that count. The count depends on how long the machine ran, so the seed is written there as each key is read
-  // and as it comes.
+  // from that count. The count depends on how long the machine ran, so the seed is written there as the routine that
+  // takes the seed (`seed`) is called and as it returns.
   const fix = () => { const seed = s.seed(); if (map.seed === undefined || seed === undefined) return; m.write(map.seed, seed & 0xff); m.write(map.seed + 1, seed >> 8); };
 
-  // A tick stops a scene's loop before it reads the keyboard, for the pilot to give it a key or none. It stops only
-  // while the tick's scene is in memory at $AD00. When the run goes on, the read goes on.
-  let ticking = false;
+  // A turn of a scene's own loop (the map's `ticks`) stops the loop before it reads the keyboard, for the pilot to give
+  // it a key or none. It is an event, the step the map names, and it stops only while its scene is in memory at $AD00.
+  // When the run goes on, the read goes on. `ticking` is the step of the turn stopped at, or null.
+  let ticking = null;
   for (const t of map.ticks ?? []) {
     const head = bytes(Object.values(game.volumes).map(v => v[t.scene]).find(Boolean).data).subarray(0, 16);
     chain(m, t.at, () => {
       if (!started()) return false;
-      if (ticking) ticking = false;
-      else if (head.every((v, i) => m.read(0xad00 + i) === v)) { emit({ step: 'tick' }); m.idle = Infinity; ticking = true; return 'wait'; }
+      if (ticking) ticking = null;
+      else if (head.every((v, i) => m.read(0xad00 + i) === v)) { emit({ step: t.step }); m.idle = Infinity; ticking = t.step; return 'wait'; }
       return false;
     });
   }
@@ -347,35 +361,37 @@ function card(s) {
   const JSR = 0x20, JUMPS = new Set([0x4c, 0x6c]);
   const calls = c => { const op = c.read(last); return op === JSR || JUMPS.has(op) && c.read(c.pc) === 0x4c; };
   const inside = event => emit({ ...event, inside: true });
-  const within = (c, name, fixed, quiet) => {
+  const within = (c, name, step, fixed, quiet) => {
     if (!calls(c)) return;
-    const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y, c: c.c }, CARD_INLINE);
+    const { event, back } = called(c, name, step, fixed, { a: c.a, x: c.x, y: c.y, c: c.c });
     inside(event);
-    if (GIVES[name] && !quiet) s.returned(back, r => inside(result(name, r)));
+    if (step.gives && !quiet) s.returned(back, r => inside(result(name, step, r)));
   };
 
-  // A call into the toolkit.
+  // A call into the toolkit. A routine that never returns (`leaves`) goes on as the game: it leaves every routine as it
+  // is called.
   const call = (c, name, fixed, ours) => {
     if (!ours) return;
+    const step = s.step(name);
     s.tap(name, c);
-    if (name === 'read-key') { fix(); s.returned(returnTo(c), fix); }
-    if (CARD_THROUGH.has(name)) s.leaveAll();
+    if (step.seed) { fix(); s.returned(returnTo(c), fix); }
+    if (step.leaves) s.leaveAll();
     if (s.depth > 0 && left && gone(c)) { left.drop(); s.depth = 0; s.end(); }
-    if (s.inside() || stirring(c)) { if (s.view) within(c, name, fixed, stirring(c)); return; }
-    const { event, after, back, inline } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y, c: c.c }, CARD_INLINE);
+    if (s.inside() || stirring(c)) { if (s.view) within(c, name, step, fixed, stirring(c)); return; }
+    const { event, after, back, inline } = called(c, name, step, fixed, { a: c.a, x: c.x, y: c.y, c: c.c });
     emit(event);
-    if (CARD_THROUGH.has(name)) return;
+    if (step.leaves) return;
     s.depth++; s.begin(name, event);
-    const drop = s.returned(back, r => { s.returns(); if (GIVES[name]) emit(result(name, r)); });
+    const drop = s.returned(back, r => { s.returns(); if (step.gives) emit(result(name, step, r)); });
     left = inline ? null : { sp: c.sp, ret: after - 1, drop };
   };
 
   return {
     routines, call,
     ended: () => { left = null; },
-    // A routine that waits for keys is a wait, and so is the key reader. The Monitor's RDKEY waiting at its address is
-    // a wait inside whatever routine called it.
-    waits: () => s.depth === 0 || WAITS.has(s.running) || s.running === 'read-key' || RDKEY.has(m.cpu.pc) || inRom(m),
+    // A routine that waits for keys is a wait. The Monitor's RDKEY waiting at its address is a wait inside whatever
+    // routine called it.
+    waits: () => s.depth === 0 || !!s.step(s.running).waits || RDKEY.has(m.cpu.pc) || inRom(m),
     ticking: () => ticking,
   };
 }
