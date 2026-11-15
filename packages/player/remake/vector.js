@@ -92,6 +92,12 @@ function picturesOf(title) {
 // a picture's shapes by its name, as the disk has them, for a problem that works with them
 export const pictureShapes = (title, name) => picturesOf(title)?.get(name.toUpperCase().replace(/_/g, ' '));
 
+// A step's words with what the scene's code wrote into its own data before the call, read from memory now: a code's
+// byte written {3:$63D8}, and a character {$4DA5}.
+const filled = (words, mem) => words
+  .replace(/\{([0-9a-f]+):([^}]*)\}/g, (all, code, bytes) => '{' + code + ':' + bytes.split(',').map(b => b.startsWith('$') ? mem[parseInt(b.slice(1), 16)].toString(16) : b).join(',') + '}')
+  .replace(/\{\$([0-9A-Fa-f]{4})\}/g, (all, at) => String.fromCharCode(mem[parseInt(at, 16)] & 0x7f));
+
 export function vectorRoutines(title) {
   // where this engine keeps its variables, and its routines' inputs in the zero page
   const V = title.map.vars, Z = z => V.zero + z;
@@ -190,7 +196,14 @@ export function vectorRoutines(title) {
       e.mem[0xc01d] = 0;
       e.inside++; e.emit({ step: 'text-screen' }); e.inside--;
     },
-    picture: simple('picture', (e, f, [name]) => { const shapes = picturesOf(title)?.get(name.toUpperCase().replace(/_/g, ' ')); if (shapes) raster.picture(shapes); }),
+    // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}).
+    picture: (e, args) => {
+      inputs(e, 'picture', args);
+      const name = filled(args.map(a => typeof a === 'object' ? a.string : a).join(' '), e.mem);
+      e.emit(describe('picture', [], e, name, z => e.mem[Z(z)]));
+      const shapes = pictureShapes(title, name);
+      if (shapes) raster.picture(shapes);
+    },
     box: simple('box', e => raster.box(e.mem[V.layout], e.a, e.x, e.y)),
     // A panel sets the layout it clears to, as the original's panels do ($6299 and the rest). Its own text sets the
     // pen and draws one line at the pen's row, which the line drawer keeps at 2 in the zero page, as for any text.
@@ -203,13 +216,10 @@ export function vectorRoutines(title) {
       Object.assign(pen, { paper: p.paper, ink: p.ink, centre: true, spacing: 1, gap: p.gap, y: p.y });
       e.mem[Z(0x02)] = p.y;
     }),
-    // A code's byte may be written {3:$63D8}, and a character {$4DA5}, for a byte the scene's code
-    // writes into its own text before printing it: it is read from memory when the text is shown.
-    // On the text screen the text goes into its characters, and the graphics stay as they are.
+    // A text, with the bytes the scene's code writes into it before printing it read from memory when it is shown
+    // (`filled`). On the text screen the text goes into its characters, and the graphics stay as they are.
     text: (e, args) => {
-      const words = args[0].string
-        .replace(/\{([0-9a-f]+):([^}]*)\}/g, (all, code, bytes) => '{' + code + ':' + bytes.split(',').map(b => b.startsWith('$') ? e.mem[parseInt(b.slice(1), 16)].toString(16) : b).join(',') + '}')
-        .replace(/\{\$([0-9A-Fa-f]{4})\}/g, (all, at) => String.fromCharCode(e.mem[parseInt(at, 16)] & 0x7f));
+      const words = filled(args[0].string, e.mem);
       e.emit(describe('text', [], e, words));
       if (title.text.showing) { for (const c of textLayout(resolve(words, e.mem), title.text.pen)) if (title.text.page[c.row]?.[c.col]) title.text.page[c.row][c.col] = { ch: c.ch, inverse: c.inverse }; return; }
       print(e, words);
