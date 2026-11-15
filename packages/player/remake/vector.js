@@ -306,7 +306,13 @@ export function vectorRoutines(title) {
     // the waits, $5C23, $5C08 and $5C20: the space bar, or for the last escape too, which it
     // returns with the carry set
     wait: (e, args, step) => waiting(e, step, 'wait', [], undefined, k => k === KEY.space && (e.a = 32, e.c = 0, true)),
-    'wait-erase': (e, args, step) => waiting(e, step, 'wait-erase', [], undefined, k => k === KEY.space),
+    // the space bar, as wait takes it, and then its button's rows filled in colour 5 with white ends ($5C08): eleven
+    // from row $B2 with the layout's first window, else from $AA
+    'wait-erase': (e, args, step) => {
+      const r = waiting(e, step, 'wait-erase', [], undefined, k => k === KEY.space);
+      if (r !== 'wait') fillRows(e, 5, 11, (e.mem[V.layout] & 0x0f) === 1 ? 0xb2 : 0xaa, 1);
+      return r;
+    },
     'wait-or-escape': (e, args, step) => {
       const r = waiting(e, step, 'wait-or-escape', [], undefined, k => (k === KEY.space || k === KEY.escape) && (e.c = k === KEY.escape ? 1 : 0, e.a = k, true));
       if (r !== 'wait') e.emit(result('wait-or-escape', e));
