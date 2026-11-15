@@ -98,6 +98,15 @@ export class Engine {
     this.inside++;
     this.enter(name, label);
   }
+  // The same, run to its return now, from inside a routine of the remake's, as the ask in its arrow mode calls a
+  // problem's own drawing. It cannot wait for a key. The routine that runs it is still the step being run, so whether
+  // that step called a routine (`called`, which each step's run sets afresh) is as it was.
+  runInside(name, label) {
+    const depth = this.stack.length, called = this.called;
+    this.callInside(name, label);
+    while (this.stack.length > depth) if (this.exec(this.program.steps[this.pc]) === 'wait') throw new Error(name + ': a routine run inside cannot wait');
+    this.called = called;
+  }
   leave(name, label) {
     this.stack = []; this.problem = null; this.waitingOn = null; this.visited = null;
     this.enter(name, label);

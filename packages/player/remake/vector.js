@@ -23,7 +23,8 @@ import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout
 // layout; the difficulty; practice; repeats; the sound flag, on with its `soundOn` bit); `loads`, where its code
 // files load when its catalog has lost it; `askClearsCarry`, `countInX`; `modern`, characters a modern font draws
 // otherwise; `routines`, its engine's routines by address, each the name of its step; `problems`, each problem's own
-// routines that draw, by the problem's number.
+// routines that draw, by the problem's number; `askCalls`, the problem's own routines the ask calls in its arrow mode
+// as a choice is made (`chose`) and taken back (`undo`), by address.
 
 // A game's code files, PART0, the parts and the problems, each with the address it loads at: the map's `loads`, by
 // the file's name or its name without the digit, or else the catalog's
@@ -65,8 +66,9 @@ function waiting(e, step, name, fixed, words, take) {
 }
 
 // $6415 calls the problem's own routines as a choice is made and taken back ($F729 and $F74B,
-// then $F776 and $F6CE, in PROB2): drawing that happens inside the ask. The problem gives them as
-// generators in e.askHooks, which run to their end here, inside, so they are drawn and no step.
+// then $F776 and $F6CE, in PROB2): drawing that happens inside the ask. A problem written by hand
+// gives them as generators in e.askHooks, which run to their end here, inside, so they are drawn
+// and no step.
 function quietly(e, run) {
   if (!run) return;
   e.inside++;
@@ -169,6 +171,14 @@ export function vectorRoutines(title) {
   // carry set, and X the keyboard's byte for it, $9B, as the key read left it ($5A58, a jump into
   // the middle of a BIT that leaves only SEC and RTS).
   const letterCarry = !title.map.askClearsCarry;
+  // The problem's own routines the ask calls as a choice is made and taken back, by the map (`askCalls`, by address,
+  // where the title's `entries` say they are in its lifted code), each with A the choice's place and 2 ($64E6), run
+  // inside the ask; or a problem's written by hand, from e.askHooks.
+  const calls = (e, kind, place) => {
+    const at = title.map.askCalls?.[kind];
+    if (!at) return quietly(e, e.askHooks?.[kind]?.(place));
+    for (const a of at) { e.a = (place + 2) & 0xff; e.runInside(...title.entries['$' + a.toString(16).toUpperCase().padStart(4, '0')]); }
+  };
   const asking = name => (e, args, step) => {
     if (e.waitingOn !== step) inputs(e, name, args);
     const mode = e.waitingOn === step ? e.askMode : e.a;
@@ -182,11 +192,11 @@ export function vectorRoutines(title) {
         if (mode === 0x80) { place = arrows.indexOf(k); key = 0xdb + place; if (place >= 0) keyPanel(place + 1); }
         else if (mode >= 0xb1 && mode < 0xba) { if (k >= 0x31 && k <= (mode & 0x7f)) place = k - 0x31; }
         else { key = k & 0x5f; if (key >= 0x41 && key <= (mode & 0x5f & 0x7f)) { place = key - 0x41; key |= 0x80; } }
-        if (place >= 0) { e.asked = { place, key }; if (name === 'ask-mode') quietly(e, e.askHooks?.chose?.(place)); }
+        if (place >= 0) { e.asked = { place, key }; if (name === 'ask-mode') calls(e, 'chose', place); }
         return false;
       }
       if (k === KEY.return) { e.x = e.asked.place; e.y = 2 * e.x; e.a = e.asked.key; e.c = letterCarry && e.a >= 0xc1 ? 1 : 0; return true; }
-      if (k === KEY.delete || k === KEY.left) { if (name === 'ask-mode') quietly(e, e.askHooks?.undo?.(e.asked.place)); if (mode === 0x80) keyPanel(0); e.asked = null; }
+      if (k === KEY.delete || k === KEY.left) { if (name === 'ask-mode') calls(e, 'undo', e.asked.place); if (mode === 0x80) keyPanel(0); e.asked = null; }
       return false;
     });
     if (r !== 'wait') { e.mem[V.layout] = 0x22; e.emit(result(name, e)); }   // $655E: panel 6, which sets $22
