@@ -10,6 +10,7 @@ import { tables, carry } from '@moonbase-machines/vector/objects.js';
 import { pictures } from '@moonbase-machines/vector/pictures.js';
 import { width, useFont } from '@moonbase-machines/vector/font.js';
 import { Raster } from './raster.js';
+import { label16 } from './engine.js';
 import { Files } from '@moonbase-machines/apple2e/mli.js';
 import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout.js';
 
@@ -281,20 +282,28 @@ export function vectorRoutines(title) {
     multiply: (e, args) => { inputs(e, 'multiply', args); e.emit(describe('multiply', [], e)); const p = e.a * e.x; e.a = p & 0xff; e.x = p >> 8; e.emit(result('multiply', e)); },
     divide: (e, args) => { inputs(e, 'divide', args); e.emit(describe('divide', [], e)); const d = e.x | e.y << 8, n = e.a || 1; e.a = Math.floor(d / n) & 0xff; e.x = d % n; e.emit(result('divide', e)); },
 
-    // a problem, written by hand for the remake (its title's problems.js). It runs
-    // as its own script or function and returns here; the carry comes back clear, as it does on
-    // the original when the problem loaded. Nature Park's ($4DC3) takes the number of times from X
-    // for a problem from the Problems menu, in place of the teacher's, until the problem is done.
+    // A problem, loaded and called as the original's loader does it ($4DC3 in Nature Park, $57CA in Animal Rescue):
+    // the carry says whether it is practice, the file goes where the loader puts it, and the problem runs from the
+    // file's start. Nature Park's loader takes the number of times from X for a problem from the Problems menu, in
+    // place of the teacher's, and puts the teacher's back after. The carry comes back clear.
+    // A problem lifted from its file (its title's script probN) is called there, and returns here. A problem written
+    // by hand for the remake (its title's problems.js) runs as a function, until it is done.
     problem: (e, args, step) => {
       if (!e.problem) {
         inputs(e, 'problem', args); e.emit(describe('problem', [], e)); e.mem[V.practice] = e.c ? 0x80 : 0;
         e.repeats = e.mem[V.repeats];
         if (title.map.countInX && e.c) e.mem[V.repeats] = e.x;
-        const run = title.problems?.[e.a];
-        if (!run) throw new Error('problem ' + e.a + ' is not written yet');
-        // the problem's file, where the loader puts it, for the tables a problem reads from it
         const file = title.disk && codeFiles(title.map, Object.values(title.disk.volumes)[0]).find(f => f.name === 'PROB' + e.a);
         if (file) e.mem.set(file.bytes, file.origin);
+        const lifted = 'prob' + e.a;
+        if (e.sources[lifted] !== undefined) {
+          const repeats = e.repeats;
+          e.stack.push({ name: e.name, pc: e.pc, after: e => { e.c = 0; if (title.map.countInX) e.mem[V.repeats] = repeats; e.emit(result('problem', e)); } });
+          e.enter(lifted, label16(file.origin));
+          return;
+        }
+        const run = title.problems?.[e.a];
+        if (!run) throw new Error('problem ' + e.a + ' is not written yet');
         e.problem = run(helpers(e, routines));
       }
       if (!e.problem.next().done) return 'wait';
