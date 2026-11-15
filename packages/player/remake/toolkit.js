@@ -86,8 +86,9 @@ export class Toolkit {
     e.runInside(script, label);
     this.set({ ...outer, a: e.a, x: e.x, y: e.y, n: e.n, z: e.z, c: e.c, v: e.v, d: e.d });
     const lo = this.m.read(0x100 | (cpu.sp + 1) & 0xff), hi = this.m.read(0x100 | (cpu.sp + 2) & 0xff);
+    // (its RTS: the script's return, whose cycles the engine has counted)
     cpu.sp = (cpu.sp + 2) & 0xff; cpu.pc = ((hi << 8 | lo) + 1) & 0xffff;
-    cpu.cycles = e.cycles + 6;   // (its RTS)
+    cpu.cycles = e.cycles;
     this.jsr = false;
   }
 
@@ -128,8 +129,8 @@ export class Toolkit {
     this.suspended = null;
     this.set({ ...p.regs, a: e.a, x: e.x, y: e.y, n: e.n, z: e.z, c: e.c, v: e.v, d: e.d });
     const lo = m.read(0x100 | (cpu.sp + 1) & 0xff), hi = m.read(0x100 | (cpu.sp + 2) & 0xff);
+    // (its RTS: the problem's return, whose cycles the engine has counted)
     cpu.sp = (cpu.sp + 2) & 0xff; cpu.pc = ((hi << 8 | lo) + 1) & 0xffff;
-    e.cycles += 6;
     const r = this.go(e, () => cpu.pc === p.back && cpu.sp === p.sp);
     e.a = cpu.a; e.x = cpu.x; e.y = cpu.y; e.n = cpu.n; e.z = cpu.z; e.c = cpu.c; e.v = cpu.v; e.d = cpu.d;
     this.set({ ...p.outer, sp: p.sp }); this.jsr = p.jsr;
