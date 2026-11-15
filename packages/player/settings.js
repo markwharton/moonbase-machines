@@ -31,6 +31,11 @@
 //                                      changed(value) at once and is then kept. If it cannot be kept, the control
 //                                      goes back to the old value, changed(old) is called, and failed(error) hears
 //                                      why. The player's options line uses it, and so can a site's own settings page.
+//
+//   offer(def, settings, line, { first?, failed? })   a setting as an engine acts on it: { value, on(f) }, its value
+//                                      now, with each change told to every f. Where the page offers the setting,
+//                                      its control goes in the element `line`, first or last; failed(error) hears
+//                                      a change that was not kept.
 import { textBytes, bytesText } from './disk/disk.js';
 
 const FILE = 'settings';
@@ -63,6 +68,14 @@ export function control(def, settings, changed = () => {}, failed = () => {}) {
     }
   });
   return label;
+}
+
+export function offer(def, settings, line, { first = false, failed = () => {} } = {}) {
+  const s = { value: settings.get(def), told: [], on(f) { this.told.push(f); return this; } };
+  if (!settings.offered(def)) return s;
+  const tell = v => { s.value = v; for (const f of s.told) f(v); };
+  line[first ? 'prepend' : 'append'](control(def, settings, tell, failed));
+  return s;
 }
 
 export const describe = type => Array.isArray(type) ? 'one of ' + type.map(v => v === '' ? 'nothing' : v).join(', ') : 'on or off';
