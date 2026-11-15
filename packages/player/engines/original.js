@@ -145,7 +145,11 @@ async function c64(g, { canvas, layer, speaker, remake }) {
   // dropped), the SID's frame rendered with each, and the screen painted each animation frame
   let frames = 0, sid = null;
   const frame = n => {
-    frames = n; m.runFrame(); keys.frame();
+    frames = n;
+    // A game may call a routine of the ROMs that moonbase has not written (machine.js `rom`). The game stops there,
+    // and the page says which routine it was.
+    try { m.runFrame(); } catch (err) { m.halted = err.message; console.error(err); }
+    keys.frame();
     if (speaker.node && sound) {
       if (!sid) sid = new SID(speaker.rate);
       const n = Math.round(19656 / 985248 * speaker.rate), first = m.cpu.cycles - 19656;
