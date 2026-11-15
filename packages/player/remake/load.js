@@ -15,6 +15,7 @@
 // own (its title.js `engine` the name of a module in its folder, not 'card' or 'vector') has no scripts here: its
 // engine is loaded with its other modules, as `title.own`, and runs the game itself (play.js).
 import { Engine } from './engine.js';
+import { Game } from './game.js';
 import { vectorRoutines } from './vector.js';
 import { cardRoutines } from './card.js';
 import { started } from '@moonbase-machines/apple2e/prodos.js';
@@ -67,6 +68,8 @@ export async function loadTitle(folder, { data, interpret = false, fixed = false
 export { read };
 
 export function makeEngine(title, scripts) {
+  // a title whose game runs on its machine (its title.js `machine`) has no scripts to run
+  if (title.machine) return new Game(title);
   // (a ProDOS title's memory starts with what ProDOS leaves, as the original's does)
   const memory = { ...(title.disk?.kind === 'prodos' ? started(title.disk) : {}), ...title.memory };
   const engine = new Engine({ routines: ENGINES[title.engine](title), scripts, start: title.start, label: title.startLabel, memory });
