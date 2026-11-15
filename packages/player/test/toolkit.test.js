@@ -60,7 +60,7 @@ test('a routine that waits for a key stops at its first poll with none, and goes
   // LDA $C000  BPL (again)  STA $C010  RTS
   const { kit, e, step } = booted({ 0x5000: [0xad, 0x00, 0xc0, 0x10, 0xfb, 0x8d, 0x10, 0xc0, 0x60] });
   assert.equal(kit.call(e, step, { to: 0x5000, back: 0x0303 }), 'wait');
-  assert.equal(e.cycles, 1004, 'its time to the first poll');
+  assert.equal(e.cycles, 1000, 'its time to the poll, which it has not made');
   assert.ok(kit.waits(step));
   kit.press(0x41);
   assert.equal(kit.call(e, step, { to: 0x5000, back: 0x0303 }), undefined);

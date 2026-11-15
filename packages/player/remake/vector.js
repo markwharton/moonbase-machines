@@ -9,7 +9,7 @@ import { pictures } from '@moonbase-machines/vector/pictures.js';
 import { width, useFont } from '@moonbase-machines/vector/font.js';
 import { Raster } from './raster.js';
 import { label16 } from './engine.js';
-import { Toolkit } from './toolkit.js';
+import { Toolkit, IDLE } from './toolkit.js';
 import { INLINE } from '@moonbase-machines/vector/inline.js';
 import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout.js';
 
@@ -148,10 +148,11 @@ export function vectorRoutines(title) {
 
   // A routine of the toolkit's: the step's inputs and its event, the view's drawing (`draw`, from the inputs), then
   // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
-  // the view draws from what it left (`after`), and its result (events.js `GIVES`). One that waits for a key stops
-  // there, and its step runs again with each key (`keys`, for what the view shows of it). A name that starts with a
-  // dot is no step.
+  // the view draws from what it left (`after`), and its result (events.js `GIVES`). One that waits for a key (events.js
+  // `WAITS`) stops at its poll with none, and its step runs again with each key (`keys`, for what the view shows of
+  // it). A name that starts with a dot is no step.
   const routine = (name, { draw, after, words, keys } = {}) => (e, args, step) => {
+    const waits = WAITS.has(name);
     // (called by the engine itself, with no step, as a visit to the menus shows the graphics again: its event and its
     // drawing only)
     if (!step) { inputs(e, name, args); e.emit(describe(name, [], e)); draw?.(e, [], []); return; }
@@ -166,7 +167,7 @@ export function vectorRoutines(title) {
       if (k === undefined) return 'wait';
       keys?.(e, k);
     }
-    const r = kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
+    const r = kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits });
     if (r === 'wait') { e.waitingOn = step; return 'wait'; }
     e.waitingOn = null;
     if (r === 'menu') return menu(e);
@@ -317,15 +318,20 @@ export function vectorRoutines(title) {
       e.enter(lifted, label16(file.origin));
     },
 
-    // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape. With no key it
-    // waits for one, unless a routine of a problem's own that is busy (`e.busy`, as its demonstration animates by the
-    // polls) is running it, which goes on with none, as on the original. A step only when it gives a key.
+    // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape, or 0 with none,
+    // as it polls once. The polls of a scene's own loop that finds none are counted, as the original's machine counts
+    // them; as many as are a wait (`IDLE`) stop the run there (Engine.run's `polled`), its time to the first, and the
+    // loop goes on with the key. The polls of a routine of a problem's own that is busy (`e.busy`, as its
+    // demonstration animates by them) are no wait. A step only when it gives a key.
     'read-key': (e, args, step) => {
-      if (e.waitingOn !== step) { e.waitingOn = step; e.asked = null; }
-      if (keyFor(e, step) === undefined && !(e.busy && e.inside)) return 'wait';
-      e.waitingOn = null;
-      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) }) === 'menu') return menu(e);
-      if (e.a) e.emit(result('read-key', e));
+      keyFor(e, step);
+      const busy = e.busy && e.inside;
+      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits: false }) === 'menu') return menu(e);
+      if (e.a) { e.idle = 0; e.waitingOn = null; e.emit(result('read-key', e)); return; }
+      if (busy) return;
+      if (!e.idle) e.waitFrom = kit.first;
+      e.idle += kit.m.idle;
+      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / 1020.484; e.cycles = e.waitFrom; e.polled = true; e.waitingOn = step; e.asked = null; }
     },
 
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
@@ -335,7 +341,7 @@ export function vectorRoutines(title) {
       if (e.waitingOn !== step) { e.waitingOn = step; e.emit(describe('tick', [], e)); }
       if (keyFor(e, step) === undefined) return 'wait';
       e.waitingOn = null;
-      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) }) === 'menu') return menu(e);
+      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits: false }) === 'menu') return menu(e);
       e.emit(result('tick', e));
     },
 

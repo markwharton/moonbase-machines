@@ -5,8 +5,10 @@
 //
 // Each routine of the toolkit that a scene calls runs on the machine's 6502, from the call to its return past the
 // data it takes inline. Its registers and flags, what it does to memory, its cycles, its speaker's clicks and the time
-// the disk takes are the game's own. A routine that waits for a key stops at its first poll with none, and goes on
-// from there when the key comes. A routine that calls back into code the title's scripts have (its `entries`, as the
+// the disk takes are the game's own. A routine that waits for a key polls for it as on the original, until the
+// pilots' observer of the original would give one, and stops there; it goes on with the key. The polls are the
+// player's time, so the routine's own ends at its first poll that finds no key. A busy one, which reads the keyboard
+// as it goes, goes on with none. A routine that calls back into code the title's scripts have (its `entries`, as the
 // ask calls a problem's own drawing) runs that code there, inside itself, and goes on as it returns.
 //
 //   const kit = new Toolkit(game, entries)   the machine, booted to where the scenes start, or to the loader's key
@@ -19,8 +21,11 @@ import { Machine } from '@moonbase-machines/apple2e/machine.js';
 
 const CYCLES_PER_MS = 1020.484;
 // polls of the keyboard with no key that are a wait, as the machine's own run counts them (machine.js `idle`)
-const IDLE = 2000;
+export const IDLE = 2000;
 const REGS = ['pc', 'sp', 'a', 'x', 'y', 'n', 'v', 'd', 'i', 'z', 'c'];
+// whether the instruction at `pc` reads the keyboard, $C000 to $C010, by its address: LDA, LDX, LDY, BIT or CMP
+const READS = new Set([0xad, 0xae, 0xac, 0x2c, 0xcd]);
+const keyboard = (m, pc) => READS.has(m.read(pc)) && m.read((pc + 2) & 0xffff) === 0xc0 && m.read((pc + 1) & 0xffff) <= 0x10;
 
 export class Toolkit {
   // `entries`: the addresses of the scenes' own code, each [script, label] (the title's `entries`); `menu`, the Main
@@ -53,11 +58,13 @@ export class Toolkit {
 
   // The 6502 from where it is until `done()`, on the engine's clock. A disk's read takes the time it takes, as a
   // delay. A JSR into the scenes' own code runs it there, inside the step (Engine.runInside), and goes on as it
-  // returns. 'wait' at the poll with no key that begins a wait; 'quit' when the game quits, 'menu' at the Main Menu.
-  go(e, done) {
+  // returns. With `waits`, 'wait' where the machine has seen as many polls with no key as are a wait (`IDLE`), its
+  // time to the first; 'quit' when the game quits, 'menu' at the Main Menu. `first` is the cycle of the first read
+  // of the keyboard that found no key, before it was made.
+  go(e, done, { waits = false } = {}) {
     const m = this.m, cpu = m.cpu;
-    cpu.cycles = e.cycles; this.jsr = false;
-    let r, polled = null, n = 0;
+    cpu.cycles = e.cycles; this.jsr = false; this.first = null;
+    let r, n = 0;
     for (;; n++) {
       if (done()) break;
       if (n > 1e8) throw new Error('the toolkit runs on without end at $' + cpu.pc.toString(16));
@@ -66,14 +73,14 @@ export class Toolkit {
       if (cpu.pc === this.menu) { r = 'menu'; break; }
       const to = this.entries.get(cpu.pc);
       if (to && this.jsr) { this.inside(e, to); continue; }
-      const before = m.idle, none = !(m.key & 0x80);
+      const none = !(m.key & 0x80), reads = keyboard(m, cpu.pc);
+      if (reads && none) this.first ??= cpu.cycles;
       this.jsr = m.read(cpu.pc) === 0x20;
       cpu.step();
-      if (polled === null && none && m.idle > before) polled = cpu.cycles;
-      if (m.idle > IDLE) { r = 'wait'; break; }
+      if (waits && m.idle > IDLE) { r = 'wait'; break; }
     }
     // (a wait's polls are the player's time: the routine's ends at its first poll that finds no key)
-    const at = r === 'wait' && polled !== null ? polled : cpu.cycles;
+    const at = r === 'wait' ? this.first ?? cpu.cycles : cpu.cycles;
     e.delay += (at - e.cycles) / CYCLES_PER_MS; e.cycles = at;
     for (const k of m.clicks) e.clicks.push(k);
     m.clicks.length = 0;
@@ -98,7 +105,7 @@ export class Toolkit {
   // A routine of the toolkit's, called by the JSR at `step`'s address: from `to`, with the engine's registers, as the
   // call left them, and back at `back`, past the data it takes inline. 'wait' while it waits for a key, the 6502 kept
   // until the step runs again with one (`press`); 'quit' when the game quits; else the registers are the engine's.
-  call(e, step, { to, back, stop }) {
+  call(e, step, { to, back, stop, waits = true }) {
     const m = this.m, cpu = m.cpu, outer = this.regs(), jsr = this.jsr;
     let p = this.paused.get(step);
     if (p) { this.paused.delete(step); this.set(p.regs); }
@@ -111,7 +118,7 @@ export class Toolkit {
       cpu.pc = to; m.idle = 0;
     }
     let stopped = false;
-    const r = this.go(e, () => cpu.pc === p.back && cpu.sp === p.sp || stop !== undefined && cpu.pc === stop && (stopped = true));
+    const r = this.go(e, () => cpu.pc === p.back && cpu.sp === p.sp || stop !== undefined && cpu.pc === stop && (stopped = true), { waits });
     // (the loader at the start of a problem's own code, which the problem's script runs: kept, to go on from its
     // JSR's return when the script returns, `resume`)
     if (stopped) { this.suspended = { ...p, regs: this.regs(), outer, jsr }; return 'lifted'; }
