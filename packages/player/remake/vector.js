@@ -150,7 +150,7 @@ export function vectorRoutines(title) {
   // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
   // the view draws from what it left (`after`), and its result (events.js `GIVES`). One that waits for a key (events.js
   // `WAITS`) stops at its poll with none, and its step runs again with each key (`keys`, for what the view shows of
-  // it). A name that starts with a dot is no step.
+  // it); a key already typed goes in as it starts. A name that starts with a dot is no step.
   const routine = (name, { draw, after, words, keys } = {}) => (e, args, step) => {
     const waits = WAITS.has(name);
     // (called by the engine itself, with no step, as a visit to the menus shows the graphics again: its event and its
@@ -162,6 +162,7 @@ export function vectorRoutines(title) {
       if (!name.startsWith('.') && !(name === 'beep' && nothing('beep', e.a))) e.emit(describe(name, fixed, e, words ? words(e, rest) : rest.length ? rest.map(r => r.string ?? r).join(' ') : undefined, z => e.mem[Z(z)], a => e.mem[a]));
       draw?.(e, fixed, rest.map(r => r.string ?? r));
       [e.a, e.x, e.y, e.n, e.z, e.c, e.v] = regs;   // (a painter's own use of them)
+      if (waits) { const k = keyFor(e, step); if (k !== undefined) keys?.(e, k); }
     } else {
       const k = keyFor(e, step);
       if (k === undefined) return 'wait';
