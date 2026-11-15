@@ -207,6 +207,9 @@ export class Engine {
     // routine's step and its return)
     if (s[k - 1]?.at === step.at) return 0;
     let c = CYCLES[m[step.at]] + (COMPARED(step) ? 2 : 0);
+    // (a jump through a table that the code writes into its own JMP, goto [$86EC y], is five instructions: LDA, STA,
+    // LDA, STA and the JMP)
+    if (step.words[0] === 'goto' && step.words[1]?.startsWith('[')) { c = 0; for (let n = 0, a = step.at; n < 5; n++) { c += CYCLES[m[a]]; a += size(m[a]); } }
     // the line before falls through to it, unless the line is where a jump comes in (its label at
     // its own address) or the line before goes elsewhere
     const prev = !step.entered && !['return', 'goto'].includes(s[k - 1]?.words[0]) ? s[k - 1] : null;
@@ -265,8 +268,9 @@ export class Engine {
     if (this.program.labels[l] === undefined && this.routines['goto-engine']) return this.routines['goto-engine'](this, ['$' + l.slice(1)], step);
     this.pc = this.label(l);
   }
-  // goto [$8180 y]: through a table of addresses, the one at the index
-  jumpTable(t, i) { this.pc = this.label(label16(this.mem[t + i] | this.mem[t + i + 1] << 8)); }
+  // goto [$8180 y]: through a table of addresses, the one at the index, read as its two LDAs read it, a cycle more
+  // for each that crosses a page
+  jumpTable(t, i) { this.pc = this.label(label16(this.mem[this.ix(t, i)] | this.mem[this.ix(t + 1, i)] << 8)); }
   call(l, step) {
     if (this.routines.elsewhere?.(this, l)) return this.routines['call-engine'](this, ['$' + l.slice(1)], step);
     this.stack.push({ name: this.name, pc: this.pc, ret: returnOf(step) }); this.pc = this.label(l);
