@@ -355,6 +355,32 @@ export function vectorRoutines(title) {
       e.emit(result('read-key', e));
     },
 
+    // PART0's line stepping, which its line routine uses ($6F35 in Nature Park) and a problem may call itself, as the
+    // clock does: sums on the zero page, no steps. From the point at 0 and 2 to the one at 1 and 3 ($6F43), the
+    // longer side's length at 4 and the shorter's at 5, an error and the two sums that step it at 6 to 11 (twice the
+    // shorter side, less the longer, and less it again), X and Y the first point, and at 4 the number of points. The
+    // original writes the steps it will take into its own code; the Remake keeps them with the engine.
+    '.line-start': e => {
+      const m = e.mem, side = (a, b) => { const d = (m[Z(b)] - m[Z(a)]) & 0xff; return m[Z(b)] >= m[Z(a)] ? [d, 1] : [(-d) & 0xff, -1]; };
+      const [dx, sx] = side(0, 1), [dy, sy] = side(2, 3), across = dx >= dy;
+      const long = across ? dx : dy, short = across ? dy : dx;
+      e.lineSteps = { one: across ? [sx, 0] : [0, sy], both: [sx, sy] };
+      const word = (at, v) => { m[Z(at)] = v & 0xff; m[Z(at + 1)] = v >> 8 & 0xff; };
+      word(8, short * 2); word(6, short * 2 - long); word(10, short * 2 - 2 * long);
+      m[Z(5)] = short; m[Z(4)] = (long + 1) & 0xff;
+      e.x = m[Z(0)]; e.y = m[Z(2)]; e.flags(m[Z(4)]);
+    },
+    // A point on along the line ($6FB7): with the error not negative, a step on both sides and the error stepped by
+    // the sum at 10; else a step on the longer side only, by the sum at 8. Then the count at 4 down, zero at the end.
+    '.line-step': e => {
+      const m = e.mem, ok = !(m[Z(7)] & 0x80), [ax, ay] = ok ? e.lineSteps.both : e.lineSteps.one, by = ok ? 10 : 8;
+      e.x = (e.x + ax) & 0xff; e.y = (e.y + ay) & 0xff;
+      const lo = m[Z(6)] + m[Z(by)], hi = m[Z(7)] + m[Z(by + 1)] + (lo >> 8);
+      e.v = ~(m[Z(7)] ^ m[Z(by + 1)]) & (m[Z(7)] ^ hi) & 0x80 ? 1 : 0; e.c = hi >> 8 & 1;
+      m[Z(6)] = lo & 0xff; m[Z(7)] = hi & 0xff;
+      m[Z(4)] = (m[Z(4)] - 1) & 0xff; e.flags(m[Z(4)]);
+    },
+
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
     // ($1382, through PART0's key poll $5283): A the key down then, the carry set for escape, and X and Y 0. With no
     // key it gives 0; only a joystick, which the Remake has none of, gives it anything else. The page gives a key or
