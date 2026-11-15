@@ -22,7 +22,9 @@ const run = (m, from, to) => { m.cpu.pc = from; m.cpu.sp = 0xff; until(m, to); }
 
 // A scene that calls the toolkit, and the toolkit at $4000, which begins with its jumps. The text routine returns past
 // the three bytes after its call. The key reader gives the key at $10, or 0 for none. The wait leaves for the menu
-// without returning, and the menu resets the stack.
+// without returning, and the menu resets the stack. The show routine calls back into the scene, and the flash routine
+// ends by jumping to the multiply routine. The title's own routines are a problem's file at $6000. The scroll at
+// $7000 is a file of the title's that draws with no routine of the map.
 const VECTOR = assemble(`
 *= $0300
 calls:    LDA #1
@@ -39,6 +41,24 @@ polls:    JSR readkey
           BEQ polls
           JMP done
 leaves:   JSR wait
+          JMP done
+backs:    JSR show
+          JMP done
+callback: LDA #6
+          LDX #7
+          JSR multiply
+          RTS
+owns:     JSR shut
+          JSR opened
+          JMP done
+tails:    JSR flash
+          LDA #1
+          JSR jumper
+          JMP done
+scrolls:  JSR scroll
+          JSR scroll
+          JMP done
+randoms:  JSR random
           JMP done
 done:     JMP done
 
@@ -75,14 +95,48 @@ menu:     LDX #$FF
           LDY #7
           JSR box
           JMP done
+show:     JSR rect
+          JSR callback
+          RTS
+flash:    JMP multiply
+random:   LDA #7
+          RTS
+kitend:
+
+*= $6000
+shut:     LDA #6
+          LDX #7
+          JSR multiply
+          RTS
+opened:   LDA #6
+          LDX #7
+          JSR multiply
+          RTS
+jumper:   LDA #6
+          LDX #7
+          JMP multiply
+
+*= $7000
+scroll:   LDX #3
+loop:     DEX
+          BNE loop
+loopend:  RTS
 `);
 const at = (program, name) => program.symbols.get(name);
+// The title's map: the toolkit's routines, the title's own in problem 1 (two of them open to the view), the scroll's
+// two view steps, and where the random routine's seed goes.
 const vectorTitle = (options = {}) => {
-  const m = machine(VECTOR), a = name => at(VECTOR, name);
-  const game = { volumes: { TEST: { PART0: { data: b64(m.mem.slice(0x4000, VECTOR.origin + VECTOR.bytes.length)) } } } };
+  const m = machine(VECTOR), a = name => at(VECTOR, name), file = (from, to) => ({ data: b64(m.mem.slice(from, to)) });
+  const game = { volumes: { TEST: { PART0: file(0x4000, a('kitend')), PROB1: file(0x6000, 0x6020), SCROLL: { aux: 0x7000, ...file(0x7000, 0x7010) } } } };
   const map = {
-    volume: 'TEST', vars: { zero: 0 }, menu: a('menu'),
-    routines: { [a('box')]: 'box', [a('rect')]: 'rectangle', [a('multiply')]: 'multiply', [a('text')]: 'text', [a('readkey')]: 'read-key', [a('wait')]: 'wait' },
+    volume: 'TEST', vars: { zero: 0 }, menu: a('menu'), loads: { PROB: 0x6000 }, seed: { at: 0x20, used: 0x22 },
+    routines: {
+      [a('box')]: 'box', [a('rect')]: 'rectangle', [a('multiply')]: 'multiply', [a('text')]: 'text', [a('readkey')]: 'read-key', [a('wait')]: 'wait',
+      [a('show')]: 'show', [a('flash')]: 'flash', [a('random')]: 'random',
+    },
+    problems: { 1: { [a('shut')]: 'demo', [a('opened')]: 'edges', [a('jumper')]: 'jump' } },
+    open: ['edges', 'jump'],
+    view: { SCROLL: { [a('scroll')]: 'shift-down', [a('loop')]: { step: 'scroll', until: a('loopend') } } },
   };
   const events = [];
   const o = observe(m, map, { kind: 'vector', game, emit: e => events.push(e), ...options });
@@ -155,8 +209,82 @@ test('a call that is not the game\'s own is no event', () => {
   assert.equal(events[0].step, 'multiply');
 });
 
+const inside = events => events.filter(e => e.inside);
+
+test('for the view, a call the title\'s code makes inside a toolkit routine is an event marked inside, and its result too', () => {
+  const { m, events, a } = vectorTitle({ view: true });
+  run(m, a('backs'), a('done'));
+  assert.deepEqual(events, [{ step: 'show' }, { step: 'multiply', a: 6, x: 7, inside: true }, { result: 'multiply', a: 42, x: 5, inside: true }]);
+});
+
+test('the calls the toolkit makes for itself are not the view\'s', () => {
+  const { m, events, a } = vectorTitle({ view: true });
+  run(m, a('calls'), a('done'));
+  assert.deepEqual(inside(events), []);
+  assert.ok(!events.some(e => e.step === 'rectangle'));
+});
+
+test('without the view, a call the title\'s code makes inside a routine is no event', () => {
+  const { m, events, a } = vectorTitle();
+  run(m, a('backs'), a('done'));
+  assert.deepEqual(events, [{ step: 'show' }]);
+});
+
+test('a title\'s own routine hides the calls it makes, unless the map opens it', () => {
+  const { m, events, a } = vectorTitle({ view: true });
+  run(m, a('owns'), a('done'));
+  assert.deepEqual(events, [{ step: 'demo' }, { step: 'edges' }, { step: 'multiply', a: 6, x: 7, inside: true }, { result: 'multiply', a: 42, x: 5, inside: true }]);
+});
+
+// The flash routine's jump leaves the scene's return on the stack, so its call of the multiply routine returns to the
+// scene. The jump routine is the title's own and open, and it ends by jumping too.
+test('a routine that ends by jumping to another makes that call itself', () => {
+  const { m, events, a } = vectorTitle({ view: true });
+  run(m, a('tails'), a('done'));
+  assert.deepEqual(events, [{ step: 'flash' }, { step: 'jump', a: 1 }, { step: 'multiply', a: 6, x: 7, inside: true }, { result: 'multiply', a: 42, x: 5, inside: true }]);
+});
+
+test('a view step is an event when the game reaches it with its file in memory; a loop is one event each time it runs', () => {
+  const { m, events, a } = vectorTitle({ view: true });
+  run(m, a('scrolls'), a('done'));
+  const steps = [{ step: 'shift-down', inside: true }, { step: 'scroll', inside: true }];
+  assert.deepEqual(events, [...steps, ...steps]);
+  m.mem[0x700f] = 0xff;
+  run(m, a('scrolls'), a('done'));
+  assert.equal(events.length, 4, 'the file is not in memory');
+});
+
+test('without the view, the view\'s steps are no events', () => {
+  const { m, events, a } = vectorTitle();
+  run(m, a('scrolls'), a('done'));
+  assert.deepEqual(events, []);
+});
+
+test('tap is given every call, however deep', () => {
+  const tapped = [];
+  const { m, a } = vectorTitle({ tap: (name, c) => tapped.push([name, c.a]) });
+  run(m, a('calls'), a('done'));
+  assert.deepEqual(tapped, [['box', 1], ['rectangle', 1], ['multiply', 6], ['text', 42]]);
+});
+
+test('a seed that is a function is read at the random routine\'s call', () => {
+  let seed = 1;
+  const { m, a } = vectorTitle({ seed: () => seed });
+  seed = 0x1234;
+  m.mem[0x22] = 0xff;
+  run(m, a('randoms'), a('done'));
+  assert.deepEqual([m.mem[0x20], m.mem[0x21]], [0x34, 0x12]);
+});
+
+test('with no seed, the random routine\'s seed is the game\'s own', () => {
+  const { m, a } = vectorTitle();
+  m.mem[0x22] = 0xff;
+  run(m, a('randoms'), a('done'));
+  assert.deepEqual([m.mem[0x20], m.mem[0x21]], [0, 0]);
+});
+
 // A card title's scene and toolkit. The print routine returns past its text, which ends in a zero. The drop routine
-// calls the restart, which goes on as the game and never returns.
+// calls the restart, which goes on as the game and never returns. The key reader gives a key at once.
 const CARD = assemble(`
 *= $0300
 calls:    LDA #4
@@ -171,7 +299,11 @@ calls:    LDA #4
 leaves:   LDY #1
           JSR drop
           JMP done
+keys:     JSR readkey
+          JMP done
 done:     JMP done
+readkey:  LDA #$C1
+          RTS
 print:    PLA
           CLC
           ADC #3
@@ -192,12 +324,23 @@ restart:  LDX #$FF
           JSR take
           JMP done
 `);
-const cardTitle = () => {
+// The key reader counts its wait at $4E and $4F, where the seed goes.
+const cardTitle = (options = {}) => {
   const m = machine(CARD), a = name => at(CARD, name), events = [];
-  const map = { routines: { [a('print')]: 'print', [a('take')]: 'take', [a('drop')]: 'drop', [a('restart')]: 'restart' } };
-  const o = observe(m, map, { kind: 'card', game: { volumes: {} }, emit: e => events.push(e) });
+  const map = { seed: 0x4e, routines: { [a('print')]: 'print', [a('take')]: 'take', [a('drop')]: 'drop', [a('restart')]: 'restart', [a('readkey')]: 'read-key' } };
+  const o = observe(m, map, { kind: 'card', game: { volumes: {} }, emit: e => events.push(e), ...options });
   return { m, o, events, a };
 };
+
+test('a card title\'s key reader has the seed written where it counts its wait, and none without a seed', () => {
+  const seeded = cardTitle({ seed: () => 0x0102 });
+  run(seeded.m, seeded.a('keys'), seeded.a('done'));
+  assert.deepEqual([seeded.m.mem[0x4e], seeded.m.mem[0x4f]], [2, 1]);
+  assert.deepEqual(seeded.events, [{ step: 'read-key' }, { result: 'read-key', a: 0xc1 }]);
+  const own = cardTitle();
+  run(own.m, own.a('keys'), own.a('done'));
+  assert.deepEqual([own.m.mem[0x4e], own.m.mem[0x4f]], [0, 0]);
+});
 
 test('a card title\'s call gives the carry too, and its text inline', () => {
   const { m, o, events, a } = cardTitle();

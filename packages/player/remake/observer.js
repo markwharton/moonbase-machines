@@ -1,17 +1,23 @@
-// The Original, observed. A game runs on its machine, and each call it makes into its toolkit's routines becomes an
-// event (events.js `describe`). A routine's result becomes an event at its return (`result`). The Remake gives the
-// same events for the same steps, so two runs are the same when their events are. The observer is given the
-// machine, the title's map and the game's data. It reads no files, so it runs in a page as well as in the pilots.
+// A game, observed. The game runs on its machine, and each call it makes into its toolkit's routines becomes an
+// event (events.js `describe`). A routine's result becomes an event at its return (`result`). Two runs are the same
+// when their events are. The observer is given the machine, the title's map and the game's data. It reads no files,
+// so it runs in a page as well as in the pilots.
 //
-//   const o = observe(m, map, { kind, game, seed, mine, started, emit, enter, leave })
+//   const o = observe(m, map, { kind, game, seed, mine, started, emit, view, enter, leave, tap })
 //     kind       'vector' or 'card': the title's toolkit, which picks its rules (below)
 //     game       the game's data, for the routines that are there only while their file is in memory
-//     seed       the random seed; each toolkit's rules say where it goes
+//     seed       the random seed, or a function that gives it; each toolkit's rules say where it goes. With none,
+//                the game's random numbers are its own
 //     mine       c => whether the call being made is the game's own; every call is, if not given
 //     started    () => whether the game has started; it has from the first, if not given
 //     emit       event => {}, given each event in order
-//     enter      event => {}, given the outermost routine's event as it starts
-//     leave      event => {}, given the outermost routine's event as it ends
+//     view       true to be given the view's own events too, each marked `inside`: they are no steps of the
+//                transcript, and a view draws them (the vector toolkit's rules say which they are)
+//     enter      event => {}, given the outermost routine's event as it starts, and a view's step that runs for a
+//                while as it starts
+//     leave      event => {}, given the same event as the routine or the step ends
+//     left       () => {}, called when the game leaves every routine without returning
+//     tap        (name, c) => {}, given every call of the game's own into a routine of the map, however deep
 //   o.depth      how deep the game is in the toolkit's routines
 //   o.running    the outermost routine running, or null
 //   o.waits()    with the machine idle, whether the game waits for a key; if not, it is busy and the run goes on
@@ -48,9 +54,11 @@ export function once(m, at, f) {
 const bytes = data => Uint8Array.from(atob(data), ch => ch.charCodeAt(0));
 
 export function observe(m, map, options) {
-  const { kind, game, seed = 0x0011, mine = () => true, started = () => true, emit = () => {} } = options;
+  const { kind, game, mine = () => true, started = () => true, emit = () => {} } = options;
   const s = {
-    m, map, game, seed, mine, started, emit,
+    m, map, game, mine, started, emit, options, view: !!options.view, tap: options.tap ?? (() => {}),
+    // The seed, read when it is wanted: a page may be given a route's seed after the game has started.
+    seed: () => typeof options.seed === 'function' ? options.seed() : options.seed,
     // How deep the game is in the toolkit's routines, the outermost routine running, and the event of its call.
     depth: 0, running: null, event: null,
     // A jump that leaves every routine without its return starts a new era.
@@ -81,7 +89,7 @@ export function observe(m, map, options) {
   // A routine returns, and the game is one routine less deep.
   s.returns = () => { if (--s.depth === 0) s.end(); };
   // The game leaves every routine without returning, as a jump to the Main Menu does.
-  s.leaveAll = () => { s.depth = 0; s.end(); s.era = ++s.eras; };
+  s.leaveAll = () => { s.depth = 0; s.end(); s.era = ++s.eras; rules.left?.(); options.left?.(); };
 
   const rules = (kind === 'vector' ? vector : card)(s);
   // A hook at each routine of the map. A call is the game's own when the routine is in memory and `mine` says so.
@@ -109,7 +117,7 @@ const VECTOR_THROUGH = new Set(['problem', 'part']);
 // The vector toolkit's rules. The toolkit is PART0, at $4000 in auxiliary memory. Each problem is a file with routines
 // of its own, loaded where the map's `loads` says.
 function vector(s) {
-  const { m, map, game, seed, started, emit } = s;
+  const { m, map, game, started, emit } = s;
   const volume = game.volumes[map.volume], part0 = bytes(volume.PART0.data);
   // The toolkit is in memory while PART0's first sixteen bytes, its jumps and its start, are at $4000. Its routines
   // can't be checked one by one, since some of them write into their own code.
@@ -117,9 +125,62 @@ function vector(s) {
   // A problem's routines are there while that problem is in memory.
   const load = map.loads?.PROB ?? 0xf000;
   const problems = Object.fromEntries(Object.keys(map.problems ?? {}).map(n => [n, bytes(volume['PROB' + n].data)]));
-  const problemIn = (n, a) => { const b = problems[n]; for (let i = 0; i < 8; i++) if (m.read(a + i) !== b[a - load + i]) return false; return true; };
+  const problemIn = (n, a) => { const b = problems[n]; for (let i = 0; i < 8 && a - load + i < b.length; i++) if (m.read(a + i) !== b[a - load + i]) return false; return true; };
   // Whether the routine running has drawn the space bar's button. A routine that has is about to wait for the key.
   let buttoned = false;
+
+  // The view's own events (`view`). A view draws most routines itself, whole, from the routine's event alone. Some
+  // of a title's own routines it has no drawing for: such a routine draws by calling the toolkit, and the view draws
+  // those calls. The map's `open` names these routines. A call made while a routine runs is the view's when the
+  // title's own code makes it, and the routine it is made in is the toolkit's or an open one. So the calls the
+  // toolkit makes for itself stay hidden, and so do the calls made inside a routine the view draws whole.
+  // `shown` is the routines running that the view has been given, the outermost first, each with the address it
+  // returns to. A routine that ends by jumping to another makes that call itself: the call returns where the routine
+  // would have.
+  const toolkit = a => a >= 0x4000 && a < 0x4000 + part0.length;
+  const own = new Set(Object.values(map.problems ?? {}).flatMap(r => Object.values(r)).map(full => full.split(' ')[0]));
+  const open = new Set(map.open ?? []);
+  let shown = [];
+  const views = c => {
+    if (!s.view) return false;
+    const inner = shown.at(-1), to = returnTo(c), titles = own.has(inner.name);
+    const byTitle = to === inner.to ? titles : !toolkit(to);
+    return byTitle && (!titles || open.has(inner.name));
+  };
+  const inside = event => { const given = { ...event, inside: true }; emit(given); return given; };
+  const within = (c, name, fixed) => {
+    shown.push({ name, to: returnTo(c) });
+    const left = () => { shown.pop(); };
+    if (name.startsWith('.')) { s.returned(returnTo(c), left); return; }
+    if (POLLS.has(name)) { s.returned(returnTo(c), r => { left(); if (r.a && (name !== 'blink-key' || r.c)) inside(result(name, r)); }); return; }
+    const { event, back } = called(c, name, fixed, { a: c.a, x: c.x, y: c.y }, VECTOR_INLINE, z => c.read(z + map.vars.zero));
+    inside(event);
+    s.returned(back, r => { left(); if (GIVES[name]) inside(result(name, r)); });
+  };
+
+  // The view's steps (the map's `view`, by the file they are in): places in the game's code where the screen
+  // changes with no routine of the map called, as a part's own code scrolls a picture. Each is an event for the view
+  // when the game reaches it, while its file is in memory. An entry is a step's name, or an event's fields. A step
+  // that runs for a while gives `until`, the address where it is done. It is one event, however many times its code
+  // passes its own address, and `enter` and `leave` are given it as it starts and ends.
+  const origin = name => map.loads?.[name] ?? map.loads?.[name.replace(/\d$/, '')] ?? volume[name].aux;
+  const running = new Set();
+  for (const [name, steps] of s.view ? Object.entries(map.view ?? {}) : []) {
+    const head = bytes(volume[name].data).subarray(0, 16), from = origin(name);
+    const there = () => started() && head.every((v, i) => m.read(from + i) === v);
+    for (const [at, step] of Object.entries(steps)) {
+      const { until, ...event } = typeof step === 'string' ? { step } : step;
+      let given = null;
+      const done = () => { if (!given) return; const e = given; given = null; running.delete(done); s.options.leave?.(e); };
+      chain(m, +at, () => {
+        if (!there() || given) return false;
+        const e = inside(event);
+        if (until !== undefined) { given = e; running.add(done); s.options.enter?.(e); }
+        return false;
+      });
+      if (until !== undefined) chain(m, until, () => { done(); return false; });
+    }
+  }
 
   // The jump to the Main Menu (control-E) resets the stack and leaves every routine.
   if (map.menu !== undefined) chain(m, map.menu, () => { if (started() && isIn()) s.leaveAll(); return false; });
@@ -130,7 +191,7 @@ function vector(s) {
     let visited = null;
     chain(m, at, () => {
       if (started() && isIn()) {
-        if (!m.read(kept) || !visited) visited = { depth: s.depth, running: s.running, event: s.event, buttoned, era: s.era };
+        if (!m.read(kept) || !visited) visited = { depth: s.depth, running: s.running, event: s.event, buttoned, era: s.era, shown };
         s.leaveAll();
       }
       return false;
@@ -140,7 +201,7 @@ function vector(s) {
         const v = visited;
         visited = null;
         s.end();
-        s.depth = v.depth; s.era = v.era; buttoned = v.buttoned;
+        s.depth = v.depth; s.era = v.era; buttoned = v.buttoned; shown = v.shown;
         if (v.event) s.begin(v.running, v.event);
       }
       return false;
@@ -160,12 +221,18 @@ function vector(s) {
   // A call into the toolkit. A call to the button routine is noted while a routine runs, whoever makes it.
   const call = (c, name, fixed, ours) => {
     if (name === 'button' && s.depth > 0) buttoned = true;
-    if (!ours || s.inside() || nothing(name, c.a)) return;
+    if (!ours || nothing(name, c.a)) return;
+    s.tap(name, c);
+    if (s.inside()) { if (views(c)) within(c, name, fixed); return; }
+    shown = [{ name, to: returnTo(c) }];
     // A routine whose name starts with a dot is no step. It makes no event, and the calls it makes are hidden.
     if (name.startsWith('.')) { s.depth++; s.returned(returnTo(c), s.returns); return; }
     // The random routine takes the seed at its first call. The game grows the seed at each poll of the keyboard
     // until then, so without this the seed would depend on how long the machine ran.
-    if (name === 'random' && m.read(map.seed.used) === 0xff) { m.write(map.seed.at, seed & 0xff); m.write(map.seed.at + 1, seed >> 8); }
+    if (name === 'random' && m.read(map.seed.used) === 0xff) {
+      const seed = s.seed();
+      if (seed !== undefined) { m.write(map.seed.at, seed & 0xff); m.write(map.seed.at + 1, seed >> 8); }
+    }
     // A routine that polls the keyboard is a step only when it gives a key. The blink-key routine gives one only
     // with the carry set.
     if (POLLS.has(name)) {
@@ -198,7 +265,9 @@ function vector(s) {
 
   return {
     routines, call,
-    ended: () => { buttoned = false; },
+    ended: () => { buttoned = false; shown = []; },
+    // a view's step still running when the game leaves every routine is over
+    left: () => { for (const done of [...running]) done(); },
     waits: () => s.depth === 0 || waiting(),
     // After a turn, the next key's time runs from the turn's start. The run stopped one instruction past it.
     mark: () => { Object.assign(time, { from: null, to: null, start: time.turn ?? m.cpu.cycles, turn: null }); },
@@ -217,11 +286,11 @@ const inRom = m => m.rom && m.cpu.pc >= 0xc100 && (m.cpu.pc < 0xd000 || !m.sw.lc
 
 // The card toolkit's rules.
 function card(s) {
-  const { m, map, game, seed, started, emit } = s;
+  const { m, map, game, started, emit } = s;
   // The key reader counts how long it waits for a key, at the map's `seed`, and the random routine can take its seed
   // from that count. The count depends on how long the machine ran, so the seed is written there as each key is read
   // and as it comes.
-  const fix = () => { if (map.seed === undefined) return; m.write(map.seed, seed & 0xff); m.write(map.seed + 1, seed >> 8); };
+  const fix = () => { const seed = s.seed(); if (map.seed === undefined || seed === undefined) return; m.write(map.seed, seed & 0xff); m.write(map.seed + 1, seed >> 8); };
 
   // A tick stops a scene's loop before it reads the keyboard, for the pilot to give it a key or none. It stops only
   // while the tick's scene is in memory at $AD00. When the run goes on, the read goes on.
@@ -238,7 +307,7 @@ function card(s) {
   // A stir is a loop that counts while it waits (the map's `stir`). The calls it makes are no events, and as it ends
   // the seed is written into its counts.
   const stir = map.stir;
-  if (stir) chain(m, stir.done, () => { if (started()) for (const a of stir.counts) m.write(a, seed & 0xff); return false; });
+  if (stir) chain(m, stir.done, () => { const seed = s.seed(); if (started() && seed !== undefined) for (const a of stir.counts) m.write(a, seed & 0xff); return false; });
   const stirring = c => stir && returnTo(c) > stir.from && returnTo(c) <= stir.to + 1;
 
   // The routine running ends without its return when the game drops that return from the stack and goes on
@@ -260,6 +329,7 @@ function card(s) {
   // A call into the toolkit.
   const call = (c, name, fixed, ours) => {
     if (!ours) return;
+    s.tap(name, c);
     if (name === 'read-key') { fix(); s.returned(returnTo(c), fix); }
     if (CARD_THROUGH.has(name)) s.leaveAll();
     if (s.depth > 0 && left && gone(c)) { left.drop(); s.depth = 0; s.end(); }
