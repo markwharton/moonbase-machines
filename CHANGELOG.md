@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.20.0] - 2026-11-15
+
+### Added
+
+- the lifter writes a jump to a routine as the routine's step and a return (3799278)
+- a problem lifted from its file runs as the title's script, called as its loader calls it (869e1c2)
+- a vector picture's name may hold a byte its scene writes, read from memory as it is drawn (4c4d3e3)
+- a vector title's point test is a step, `inside`, answered as the engine answers it (958da6f)
+- a problem's own routine that draws is a step, painted by its title's painter (64c256f)
+- a turn of a game's loop that reads the keyboard without waiting is a step, tick (d6bf4b0)
+- a vector title's line stepping is two routines with no steps, from PART0's code (1dc5059)
+- the inline readers can name a byte by its address in place of its value (19a3f3f)
+- the lifter names each byte of a call's data that the code writes, by its address (87d0e8e)
+- the lifter writes a routine its walk reaches at the routine's own address as its step (a556e1c)
+- the ask in its arrow mode runs a lifted problem's own code as a choice is made and taken back (1b4c7f3)
+- a vector title's engine holds PART0 and each part in memory where its loader puts them (a33eed7)
+- a problem's own routine whose code is lifted runs that code inside its step (517f9d0)
+- a vector title's problems are its lifted scripts alone, with no helpers for problems written by hand (288780f)
+- the Original's machine can run a vector title's toolkit for its Remake (3d0cbb7)
+- a vector title's Remake runs its toolkit on the Original's machine, on one clock with its lines (59ce246)
+- control-E in a vector Remake goes to the Main Menu by the game's own key reader (e5bf852)
+- a vector Remake waits for a key where the Original waits, timed to before its first poll with none (c0fd95a)
+- a key already typed goes into a vector Remake's waiting routine as it starts (15c73c2)
+- the toolkit marks the cycle after the read that takes a key (d01cddf)
+- a Remake runs on one clock, a frame of the original's time at a time, at the page's pace (1193340)
+- a vector Remake's view can show a step for as long as it took on the original (24599cd)
+
+### Fixed
+
+- a key cap's clean label sits in the middle of the cap, whatever its size (3d9c130)
+- a vector title's Remake plays each sound by the game's own sound routine (20d2fe0)
+- the lifter follows no table of addresses that starts where data begins (f888f59)
+- a vector title's text and panels leave each line's row in the zero page, as its line drawer does (b3e209e)
+- a vector picture leaves its shapes at $E000, where its loader copies them (9d03a3d)
+- a vector picture returns its routine's registers, the shapes drawn and their address (68a117c)
+- the lifter writes a text's DEL as \u007f, so a lifted script is plain text (6a5d32c)
+- a key poll inside a busy routine of a problem's own gives no key and goes on, as on the original (fa136db)
+- a vector title's fill-rows leaves the row it stopped at and its registers, as its routine does (ddf776c)
+- a vector title's random number sets N and Z, as its routine's PLA does (902c658)
+- a vector title's wait-erase fills its button's rows after the space bar, as its routine does (d51f6cf)
+- the lifter writes a key cap without its high bit as its number (0ebe929)
+- the engine counts a second line at the same address as no cycles (f218f0f)
+- the engine counts a jump through a table as its five instructions (34f8b9d)
+- the engine counts every load the lifter left out before a line, however many (2796fa3)
+- a step whose own code runs on the machine counts its first instruction once (ce7ee0d)
+- a step that waited and runs again with its key counts its call once (ba01405)
+- the toolkit counts a return from the scenes' own code once (84f4249)
+- a vector title's part start runs its own code on the machine (d51d8c7)
+- a vector Remake counts its polls with no key across a run, as its machine does (626313b)
+
+### Changed
+
+- the engine's stop at each frame of the original's time is 'frame' (e4f0718)
+
 ## [v0.19.0] - 2026-11-15
 
 ### Added
@@ -254,3 +308,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.17.1]: https://github.com/markwharton/moonbase/compare/v0.17.0...v0.17.1
 [v0.18.0]: https://github.com/markwharton/moonbase/compare/v0.17.1...v0.18.0
 [v0.19.0]: https://github.com/markwharton/moonbase/compare/v0.18.0...v0.19.0
+[v0.20.0]: https://github.com/markwharton/moonbase/compare/v0.19.0...v0.20.0
