@@ -31,6 +31,8 @@ export function codeFiles(map, volume) {
     .map(([name, f]) => ({ name, bytes: Uint8Array.from(atob(f.data), c => c.charCodeAt(0)), origin: loads[name] ?? loads[name.slice(0, -1)] ?? f.aux }));
 }
 
+// the Apple's clock, its cycles in a millisecond
+const CYCLES_PER_MS = 1020.484;
 const KEY = { escape: 27, space: 32, return: 13, delete: 127, left: 8, right: 21, down: 10, up: 11, menu: 5 };
 
 // the inputs of a step: numbers, a register's name, or an address for the table of objects
@@ -148,18 +150,21 @@ export function vectorRoutines(title) {
 
   // A routine of the toolkit's: the step's inputs and its event, the view's drawing (`draw`, from the inputs), then
   // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
-  // the view draws from what it left (`after`), and its result (events.js `GIVES`). One that waits for a key (events.js
+  // the view draws from what it left (`after`), and its result (events.js `GIVES`). The time it took on the original,
+  // in milliseconds, is kept for its event as it returns (`e.took`), for a view that shows the step for as long, apart
+  // from the event, which is the transcript. One that waits for a key (events.js
   // `WAITS`) stops at its poll with none, and its step runs again with each key (`keys`, for what the view shows of
   // it); a key already typed goes in as it starts. A name that starts with a dot is no step.
   const routine = (name, { draw, after, words, keys } = {}) => (e, args, step) => {
-    const waits = WAITS.has(name);
+    const waits = WAITS.has(name), from = e.cycles;
+    let event = null;
     // (called by the engine itself, with no step, as a visit to the menus shows the graphics again: its event and its
     // drawing only)
     if (!step) { inputs(e, name, args); e.emit(describe(name, [], e)); draw?.(e, [], []); return; }
     if (!kit.waits(step)) {
       const { fixed, rest } = inputs(e, name, args);
       const regs = [e.a, e.x, e.y, e.n, e.z, e.c, e.v];
-      if (!name.startsWith('.') && !(name === 'beep' && nothing('beep', e.a))) e.emit(describe(name, fixed, e, words ? words(e, rest) : rest.length ? rest.map(r => r.string ?? r).join(' ') : undefined, z => e.mem[Z(z)], a => e.mem[a]));
+      if (!name.startsWith('.') && !(name === 'beep' && nothing('beep', e.a))) e.emit(event = describe(name, fixed, e, words ? words(e, rest) : rest.length ? rest.map(r => r.string ?? r).join(' ') : undefined, z => e.mem[Z(z)], a => e.mem[a]));
       draw?.(e, fixed, rest.map(r => r.string ?? r));
       [e.a, e.x, e.y, e.n, e.z, e.c, e.v] = regs;   // (a painter's own use of them)
       if (waits) { const k = keyFor(e, step); if (k !== undefined) keys?.(e, k); }
@@ -173,6 +178,7 @@ export function vectorRoutines(title) {
     e.waitingOn = null;
     if (r === 'menu') return menu(e);
     if (r === 'quit') { e.ended = true; return; }
+    if (event) e.took.set(event, (e.cycles - from) / CYCLES_PER_MS);
     after?.(e);
     if (GIVES[name] && !POLLS.has(name)) e.emit(result(name, e));
   };
@@ -331,7 +337,7 @@ export function vectorRoutines(title) {
       if (e.a) { e.waitFrom = null; e.waitingOn = null; e.emit(result('read-key', e)); return; }
       if (busy) return;
       e.waitFrom ??= kit.first;
-      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / 1020.484; e.cycles = e.waitFrom; e.waitFrom = null; e.polled = true; e.waitingOn = step; e.asked = null; }
+      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / CYCLES_PER_MS; e.cycles = e.waitFrom; e.waitFrom = null; e.polled = true; e.waitingOn = step; e.asked = null; }
     },
 
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
@@ -424,6 +430,7 @@ export function vectorRoutines(title) {
   routines.setup = e => {
     kit = e.kit = new Toolkit(title.disk, title.entries, title.menu && title.map.menu);
     e.mem = kit.mem;
+    e.took = new WeakMap();
     Object.defineProperty(e, 'idle', { get: () => kit.m.idle, set: v => { kit.m.idle = v; }, configurable: true });
     title.files = kit.m.disk;
     kit.boot(e, e.script(title.start).steps[0]?.at ?? 0x4000);

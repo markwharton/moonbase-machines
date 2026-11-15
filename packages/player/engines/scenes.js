@@ -57,7 +57,7 @@ export async function play(g) {
   const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.cleanText = cleanText.value; v.monitor = monitor.value; onView?.(v); return v; };
   let view = makeView();
   monitor.on(value => { view.monitor = value; view.prompts(); });
-  engine.on(e => queue.push(view.snapshot({ ...e })));
+  engine.on(e => queue.push([e, view.snapshot({ ...e })]));
   // The mini view, where the page gives one (`mini`) and the title has a place for it (its title.js `inset`): Off,
   // Live or Pictures, a setting; shown in the band at the top of the screen while the band is there. A picture only:
   // the game's screen otherwise as it is
@@ -106,8 +106,9 @@ export async function play(g) {
     engine.sid.length = 0;
   };
 
-  // An event drawn, as the view snapshot it when it happened
-  const draw = e => { history.push(e); view.apply(e); };
+  // An event drawn: as the view snapshot it when it happened, with the time its step took on the original, at the
+  // page's pace, for a view that shows the step for as long (`ms`, from the engine's `took`: remake/vector.js)
+  const draw = ([source, e]) => { const ms = engine.took?.get(source); if (ms !== undefined) e.ms = ms * g.pace(); history.push(e); view.apply(e); };
 
   // One clock for the Remake, as for the Original (@moonbase-machines/mos6502/pace.js): sixty frames a second against
   // the page's clock, a short hitch caught up and a long pause dropped. Each frame runs the engine for a frame of the
