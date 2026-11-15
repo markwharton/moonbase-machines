@@ -4,7 +4,7 @@
 // scenes read, and paints the original's screen for the scenes that read it back. The rules for
 // the keys, the random numbers and the waits are the original's, from PART0 (docs in
 // @moonbase-machines/vector's README).
-import { describe, result, TAKES, GIVES, POLLS, nothing } from './events.js';
+import { describe, result, TAKES, GIVES, POLLS, WAITS, nothing } from './events.js';
 import { helpers } from './problems.js';
 import { tables, carry } from '@moonbase-machines/vector/objects.js';
 import { pictures, shapes } from '@moonbase-machines/vector/pictures.js';
@@ -274,7 +274,8 @@ export function vectorRoutines(title) {
     // address kept at $60, in A as the engine gives it (draw.js `inside`)
     inside: (e, args) => { inputs(e, 'inside', args); e.emit(describe('inside', [], e)); e.a = e.flags(inside(shapes(a => e.mem[a], e.mem[0x60] | e.mem[0x61] << 8)[0], e.x, e.y)); e.emit(result('inside', e)); },
     'key-panel': simple('key-panel', e => keyPanel(e.a)), 'keep-span': simple('keep-span'), 'put-span': simple('put-span'), 'invert-span': simple('invert-span'),
-    button: simple('button'),
+    // the space bar's button, which a busy routine draws as it is about to wait for the space bar
+    button: simple('button', e => { if (e.inside) e.busy = null; }),
     // a beep of 0 does nothing, and is no step (events.js)
     beep: (e, args) => { inputs(e, 'beep', args); if (!nothing('beep', e.a)) e.emit(describe('beep', [], e)); },
     // a sound's five bytes; a byte may be an address, for one the scene's code writes before it plays
@@ -356,9 +357,12 @@ export function vectorRoutines(title) {
     },
 
     // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape
+    // With no key, inside a routine of a problem's own that is busy (`e.busy`, as its demonstration animates by the
+    // polls), it gives none, A, X and Y 0, and the routine goes on, as on the original; anywhere else it waits for one.
     'read-key': (e, args, step) => {
       if (e.waitingOn !== step) { e.waitingOn = step; e.asked = null; }
       const k = e.key();
+      if (k === undefined && e.busy && e.inside) { e.waitingOn = null; e.a = e.flags(0); e.x = 0; e.y = 0; e.c = 0; return; }
       if (k === undefined) return 'wait';
       if (title.visit?.[k]) { e.visit(k); return 'wait'; }
       e.waitingOn = null;
@@ -472,7 +476,11 @@ export function vectorRoutines(title) {
       inputs(e, name, args);
       if (!polls && !quiet) e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a]));
       title.paint?.[name]?.(title.model, e);
-      if (lifted(e)) e.callInside(script, label, e => { if (gives(e)) e.emit(result(name, e)); });
+      if (!lifted(e)) return;
+      // The routine that runs its code from a scene's step is busy until it draws the space bar's button, unless it
+      // waits for keys or polls for one itself, as the original's observer has it (events.js `WAITS`, `POLLS`).
+      if (!e.inside) e.busy = !WAITS.has(name) && !polls ? name : null;
+      e.callInside(script, label, e => { if (!e.inside) e.busy = null; if (gives(e)) e.emit(result(name, e)); });
     };
   }
   // The game's code in memory where its loader puts it, as the scenes read bytes of it: PART0 from the start, as the
