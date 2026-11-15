@@ -109,6 +109,8 @@ const filled = (words, mem) => words
 export function vectorRoutines(title) {
   // where this engine keeps its variables, and its routines' inputs in the zero page
   const V = title.map.vars, Z = z => V.zero + z;
+  // a code file of the game's, PART0 to PART3 and PROB1 to PROB8, with the address it loads at (`codeFiles`)
+  const codeFile = name => title.disk && (title.codeFiles ??= codeFiles(title.map, Object.values(title.disk.volumes)[0])).find(f => f.name === name);
   useFont(title.font);
   // what an object's routine leaves: the carry, and in the row its rows were counted in (zero
   // page $02 from the engine's), the row past the object's bottom, which a span after it may take
@@ -336,7 +338,7 @@ export function vectorRoutines(title) {
         inputs(e, 'problem', args); e.emit(describe('problem', [], e)); e.mem[V.practice] = e.c ? 0x80 : 0;
         e.repeats = e.mem[V.repeats];
         if (title.map.countInX && e.c) e.mem[V.repeats] = e.x;
-        const file = title.disk && codeFiles(title.map, Object.values(title.disk.volumes)[0]).find(f => f.name === 'PROB' + e.a);
+        const file = codeFile('PROB' + e.a);
         if (file) e.mem.set(file.bytes, file.origin);
         const lifted = 'prob' + e.a;
         if (e.sources[lifted] !== undefined) {
@@ -439,6 +441,8 @@ export function vectorRoutines(title) {
     'load-part': (e) => {
       const volume = Object.keys(title.disk?.volumes ?? {})[0]?.toUpperCase();
       if (title.files?.out?.has(volume)) { e.a = e.flags(0x45); e.c = 1; return; }
+      const file = codeFile('PART' + e.a);
+      if (file) e.mem.set(file.bytes, file.origin);
       e.stack = []; e.enter('part' + e.a, undefined, true);
     },
 
@@ -458,5 +462,8 @@ export function vectorRoutines(title) {
     if (name.startsWith('.') || routines[name]) continue;
     routines[name] = (e, args) => { inputs(e, name, args); e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a])); title.paint?.[name]?.(title.model, e); };
   }
+  // The game's code in memory where its loader puts it, as the scenes read bytes of it: PART0 from the start, as the
+  // panels' rows are read from it, and each part and problem as it is loaded.
+  routines.setup = e => { const file = codeFile('PART0'); if (file) e.mem.set(file.bytes, file.origin); };
   return routines;
 }
