@@ -130,8 +130,14 @@ export function vectorRoutines(title) {
     k.caps.forEach(([cx, cy, ch], i) => { if (!n || n === i + 1) { pen.x = cx; pen.y = cy; cap(String.fromCharCode(ch & 0x7f)); } });
     Object.assign(pen, { x, y });
   };
-  // a text on the graphics screen, as $6CE2 paints it
-  const print = (e, words) => { for (const line of layout(resolve(words, e.mem), pen)) for (const c of line.chars) raster.glyph(c.ch, c.x, line.top, c.ink ?? line.ink, line.paper, line.tall ? 2 : 1, line.height, pen.spacing); };
+  // A text on the graphics screen, as $6CE2 paints it. The original's line drawer keeps the row of each line it
+  // draws at 2 in the zero page ($6F5B in Animal Rescue, $643C in Nature Park), and a scene may read it there.
+  const print = (e, words) => {
+    for (const line of layout(resolve(words, e.mem), pen)) {
+      e.mem[Z(0x02)] = line.top;
+      for (const c of line.chars) raster.glyph(c.ch, c.x, line.top, c.ink ?? line.ink, line.paper, line.tall ? 2 : 1, line.height, pen.spacing);
+    }
+  };
   // object n of the table set last, put as `how` ('whole', 'keep' or 'clear')
   const put = (e, n, x, y, how) => { const o = objectOf(e, n); if (o) raster.object(o, x, y, how); };
   // what a title's painters (titles/<title>/paint.js) paint the model with
@@ -186,7 +192,8 @@ export function vectorRoutines(title) {
     },
     picture: simple('picture', (e, f, [name]) => { const shapes = picturesOf(title)?.get(name.toUpperCase().replace(/_/g, ' ')); if (shapes) raster.picture(shapes); }),
     box: simple('box', e => raster.box(e.mem[V.layout], e.a, e.x, e.y)),
-    // a panel sets the layout it clears to, as the original's panels do ($6299 and the rest)
+    // A panel sets the layout it clears to, as the original's panels do ($6299 and the rest). Its own text sets the
+    // pen and draws one line at the pen's row, which the line drawer keeps at 2 in the zero page, as for any text.
     panel: simple('panel', (e, [n]) => {
       const p = PANELS[n];
       if (!p) return;
@@ -194,6 +201,7 @@ export function vectorRoutines(title) {
       raster.panel(p.rows[0], p.rows[1], p.fill);
       for (const y of p.more ?? []) raster.whiteLines(y);
       Object.assign(pen, { paper: p.paper, ink: p.ink, centre: true, spacing: 1, gap: p.gap, y: p.y });
+      e.mem[Z(0x02)] = p.y;
     }),
     // A code's byte may be written {3:$63D8}, and a character {$4DA5}, for a byte the scene's code
     // writes into its own text before printing it: it is read from memory when the text is shown.
