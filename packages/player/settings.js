@@ -1,5 +1,5 @@
 // A person's settings: what the player, its engines and a site's pages let a person choose (the sound, the printer,
-// the old style text, a page's own choices), each declared where it acts, in one shape, and kept through the provider
+// clean text, a page's own choices), each declared where it acts, in one shape, and kept through the provider
 // (provider.js) on a disk of the owner's, settings/<owner>, where the person's files go. The store is typed against
 // the declarations: only a declared setting can be read or kept, every value checked against its type. Nothing here
 // knows of an address: a site that lets its address set a setting for a visit reads it itself and gives the value.

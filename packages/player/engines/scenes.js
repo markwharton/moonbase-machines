@@ -1,14 +1,14 @@
 // The Remake's engine for a title of scenes, 'card' or 'vector' (play.js hands it the game): its scripts on the
 // remake's engine (remake/engine.js), its events drawn by the view on the stage, the view the machine's (an Apple's
 // hi-res page for a card title, CardView; a Commodore 64's, C64View; a vector title's pictures and text, View); the
-// settings it acts on (play.js `game.setting`): Old style text, where the view draws clean text (View, and CardView
+// settings it acts on (play.js `game.setting`): Clean text, where the view draws clean text (View, and CardView
 // for a title with `text`), and the mini view, where the page gives one and the title has a place for it. A run's
 // events are drawn one after another, with a moment for each sound and flash, so that what the original took time
 // over takes time here too.
 import { makeEngine } from '../remake/load.js';
 
-// The settings this engine acts on (play.js `setting`): Old style text and the mini view.
-import { OLD_STYLE, MINI } from '../declared.js';
+// The settings this engine acts on (play.js `setting`): Clean text and the mini view.
+import { CLEAN_TEXT, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';
@@ -38,13 +38,13 @@ export async function play(g) {
   const engine = makeEngine(title, scripts);
   if (title.files) saves.keep(title.files);
   const queue = [];
-  // The view, and every event it has drawn. When Old style text is turned on or off, the events are drawn again from
+  // The view, and every event it has drawn. When Clean text is turned on or off, the events are drawn again from
   // the start. The setting is offered only where the view draws text of its own: a vector title (View), or a card
   // title whose title.js has `text` (CardView). The other views draw the machine's own screen.
   const history = [];
-  const oldStyle = drawn === 'vector' || drawn === 'card' && title.text ? g.setting(OLD_STYLE) : { value: false, on() { return this; } };
+  const cleanText = drawn === 'vector' || drawn === 'card' && title.text ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
   let onView = null;   // (the mini view's, given each view made)
-  const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.oldStyle = oldStyle.value; onView?.(v); return v; };
+  const makeView = () => { svg.replaceChildren(); const v = drawn === 'c64' ? new C64View(svg, { engine, chargen }) : drawn === 'card' ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.cleanText = cleanText.value; onView?.(v); return v; };
   let view = makeView();
   engine.on(e => queue.push(view.snapshot({ ...e })));
   // The mini view, where the page gives one (`mini`) and the title has a place for it (its title.js `inset`): Off,
@@ -64,7 +64,7 @@ export async function play(g) {
     choice.on(show);
     show();
   }
-  oldStyle.on(() => {
+  cleanText.on(() => {
     view = makeView();
     for (const e of history) view.apply(e);
     view.prompts();

@@ -33,7 +33,7 @@ export class View {
   // `svg` is the element to draw in; `disk` the title's disk from its game's data; `engine` the
   // running engine; `extra` the title's own drawing for its problems (titles/<title>/view.js)
   constructor(svg, { disk, volume, engine, extra = {}, press }) {
-    this.svg = svg; this.engine = engine; this.extra = extra; this.press = press;
+    this.svg = svg; this.engine = engine; this.extra = extra; this.press = press; this.cleanText = true;
     svg.setAttribute('viewBox', '0 0 560 384');
     fitWhenLoaded(svg);   // (the words fitted again once Inter has loaded)
     this.disk = disk.volumes[volume];
@@ -115,7 +115,7 @@ export class View {
     old.el?.remove();
     const g = this.el('g', { 'data-cell': row * 40 + col }, this.textScreen), x = col * 14, y = row * 16, ink = inverse ? '#000' : '#fff';
     if (inverse) this.el('rect', { x, y, width: 14, height: 16, fill: '#fff', 'shape-rendering': 'crispEdges' }, g);
-    if (this.oldStyle) {
+    if (!this.cleanText) {
       // the emulator's own letters, five dots by seven in a cell of seven by eight, two pixels a dot
       const glyph = FONT[ch.charCodeAt(0) - 0x20] ?? FONT[0];
       let d = ''; for (let gx = 0; gx < 5; gx++) for (let gy = 0; gy < 7; gy++) if (glyph[gx] >> gy & 1) d += `M${x + 2 + gx * 2} ${y + gy * 2}h2v2h-2z`;
@@ -337,7 +337,7 @@ export class View {
     const w = wide ?? (label.length > 1 ? 32 : 7);
     const g = this.el('g', key !== undefined ? { class: 'key', 'data-key': key } : {});
     this.el('rect', { x: X(x), y: Y(y - 2), width: X(w), height: Y(11), rx: 3, fill: rgb(1), stroke: rgb(13), 'stroke-width': 3 }, g);
-    if (this.oldStyle) {
+    if (!this.cleanText) {
       // the engine's cap: the glyph a dot in from the left, or RETURN and DELETE spelt out
       let tw = 0; for (const c of label) tw += width(c) + 1;
       this.glyphs(g, label, x + Math.max(1, Math.round((w - tw + 1) / 2)), y, 15);
@@ -371,7 +371,7 @@ export class View {
       const end = () => {
         if (!word) return;
         left = Math.min(left, word.x); right = Math.max(right, word.x + word.width);
-        if (this.oldStyle) { this.glyphs(g, word.chars, word.x, top, line.ink, tall, line.paper); word = null; return; }
+        if (!this.cleanText) { this.glyphs(g, word.chars, word.x, top, line.ink, tall, line.paper); word = null; return; }
         const el = this.el('text', { y: Y(top + (tall ? 15 : 7)), 'data-x': X(word.x), 'data-width': X(word.width) }, g);
         // the part of a line before its first color is drawn in the ink the whole line ends with
         for (const c of word.chars) { const span = this.el('tspan', { fill: rgb(c.ink ?? line.ink) }, el); span.textContent = this.modern(c.ch); }
@@ -390,7 +390,7 @@ export class View {
   // place and scaled to the width the engine gave it. Browsers differ in how they stretch text to
   // a length, and a measured scale looks the same in all of them.
   fit(g) { fit(g); }
-  // The old style: the engine's own glyphs, each set dot a square, over the glyph's cell in the
+  // The words with Clean text off: the engine's own glyphs, each set dot a square, over the glyph's cell in the
   // paper color. `chars` is a string, or the characters of a line with the ink each was given
   // (the part of a line before its first color takes the ink the line ends with). Returns the
   // dot after the last glyph.
@@ -411,7 +411,7 @@ export class View {
 
   // plain words at dot x and row y, in the engine's font widths with spacing 1, fitted as a text's
   write(parent, text, x, y, ink = 15) {
-    if (this.oldStyle) return this.glyphs(parent, text, x, y, ink);
+    if (!this.cleanText) return this.glyphs(parent, text, x, y, ink);
     const g = this.el('g', { 'font-family': SANS, 'font-size': 19, 'font-weight': 500, fill: rgb(ink) }, parent);
     for (const part of text.split(' ')) {
       if (part) {
@@ -450,7 +450,7 @@ export class View {
       const y = (e.mem[this.vars.layout] & 15) === 1 ? 178 : 170;
       const g = this.el('g', { class: 'key', 'data-key': 32 }, this.prompt);
       this.el('rect', { x: X(46), y: Y(y), width: X(47), height: Y(11), rx: 4, fill: rgb(1), stroke: rgb(13), 'stroke-width': 3 }, g);
-      if (this.oldStyle) this.glyphs(g, 'SPACE BAR', 48, y + 2, 15);
+      if (!this.cleanText) this.glyphs(g, 'SPACE BAR', 48, y + 2, 15);
       else { const t = this.el('text', { x: X(69.5), y: Y(y + 8), fill: rgb(15), 'font-family': SANS, 'font-size': 15, 'font-weight': 600, 'text-anchor': 'middle' }, g); t.textContent = 'SPACE BAR'; }
       this.spaceBar = { y, erase: name === 'wait-erase', el: g };
     } else if (name === 'ask' || name === 'ask-mode' || name === 'ask-escape') {

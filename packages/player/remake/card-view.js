@@ -4,7 +4,7 @@
 // and this is them as they are; drawing them sharper is for later.
 //
 // If the title's title.js has `text`, its words are painted again in one colour, without the colour fringes
-// (clean-text.js), unless Old style text is on (`oldStyle`, set by engines/scenes.js).
+// (clean-text.js), while Clean text is on (`cleanText`, set by engines/scenes.js).
 //
 // `inset` (a title's, its title.js), when set on: the screen's band at the top, where it is (its rows above
 // `top` all white), its dots `move` moved `by`, to make room for a mini view; `banded`, whether the band was there
@@ -16,7 +16,7 @@ const NS = 'http://www.w3.org/2000/svg';
 
 export class CardView {
   constructor(svg, { engine, inset = null }) {
-    this.svg = svg; this.engine = engine; this.inset = inset; this.insetOn = false; this.banded = false; this.oldStyle = false;
+    this.svg = svg; this.engine = engine; this.inset = inset; this.insetOn = false; this.banded = false; this.cleanText = true;
     svg.setAttribute('viewBox', '0 0 560 384');
     this.canvas = document.createElement('canvas'); this.canvas.width = 560; this.canvas.height = 384;
     this.image = document.createElementNS(NS, 'image');
@@ -38,7 +38,7 @@ export class CardView {
     // (the band is looked for before the words are painted again, which could make text there look like band. The
     // words are painted before the band is moved, so they move with it.)
     this.banded = this.insetOn && !!this.inset && band(pixels.data, this.inset);
-    if (this.clean && !this.oldStyle) this.clean.paint(s, page, pixels.data);
+    if (this.clean && this.cleanText) this.clean.paint(s, page, pixels.data);
     if (this.banded) shift(pixels.data, this.inset);
     ctx.putImageData(pixels, 0, 0);
     this.image.setAttribute('href', this.canvas.toDataURL());
