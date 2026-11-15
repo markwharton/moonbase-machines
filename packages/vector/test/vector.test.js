@@ -11,6 +11,7 @@ import { draw, inside, screen } from '@moonbase-machines/vector/draw.js';
 import { decode, put } from '@moonbase-machines/vector/objects.js';
 import { document } from '@moonbase-machines/vector/svg.js';
 import { codeFiles } from '@moonbase-machines/vector/code-files.js';
+import { STEPS, DRAWS } from '@moonbase-machines/vector/steps.js';
 
 const name14 = s => [...s.padEnd(14)].map(c => c.charCodeAt(0));
 const picture = (name, shapes) => { const body = shapes.flatMap((s, i) => [...(i ? [0xfe] : []), s.fill, s.line, ...s.points.flat()]).concat([0xfe, 0xff]); const length = 16 + body.length; return [...name14(name), length & 0xff, length >> 8, ...body]; };
@@ -70,4 +71,13 @@ test('a game\'s code files at the addresses its map gives, else its catalog\'s',
   const volume = { PART0: { aux: 0x4000, data: btoa('\x01') }, PART1: { aux: 0x9000, data: btoa('\x02') }, PROB1: { aux: 0, data: btoa('\x03') }, PICS1: { aux: 0, data: '' } };
   assert.deepEqual(codeFiles({ loads: { PART0: 0x4000, PART: 0x8000, PROB: 0x0800 } }, volume).map(f => [f.name, f.origin]), [['PART0', 0x4000], ['PART1', 0x8000], ['PROB1', 0x0800]]);
   assert.deepEqual(codeFiles(undefined, volume).map(f => f.origin), [0x4000, 0x9000, 0]);
+});
+
+test('the toolkit\'s steps: registers of A, X, Y and the carry; a text, a picture\'s name and a sound read after the call', () => {
+  for (const [name, step] of Object.entries(STEPS)) for (const k of ['takes', 'gives']) if (step[k] !== undefined) assert.match(step[k], /^[axyc]+$/, `${name}: ${k}`);
+  const data = [0xc8, 0xc9, 0x80, 0x83, 0x62, 0x5f, 0x63, 1, 2, 3, 4, 5], read = a => data[a];
+  assert.deepEqual(STEPS.text.inline(read, 0), { length: 3, value: 'HI' });
+  assert.deepEqual(STEPS.picture.inline(read, 3), { length: 4, value: 'b_c' });
+  assert.deepEqual(STEPS.sound.inline(read, 7), { length: 5, value: '1 2 3 4 5' });
+  assert.ok(DRAWS.every(name => !STEPS[name]?.waits), 'no step that only draws waits');
 });
