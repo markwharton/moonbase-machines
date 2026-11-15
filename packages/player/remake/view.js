@@ -17,6 +17,8 @@ import { colors } from '@moonbase-machines/apple2e/screen.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const X = x => x * 4, Y = y => y * 2;
+// A row of the engine's words: its baseline is 7 dots below its top, or 15 for tall words.
+const BASELINE = 7, TALL_BASELINE = 15;
 // (the faces of every remake's clean text, faces.js: Inter, and JetBrains Mono for the text screen's grid)
 import { WORDS as SANS, gridText, fit, fitWhenLoaded } from './faces.js';
 
@@ -342,7 +344,8 @@ export class View {
       let tw = 0; for (const c of label) tw += width(c) + 1;
       this.glyphs(g, label, x + Math.max(1, Math.round((w - tw + 1) / 2)), y, 15);
     } else {
-      const t = this.el('text', { x: X(x + w / 2), y: Y(y + 7), fill: rgb(15), 'font-family': SANS, 'font-size': label.length > 1 ? 13 : 16, 'font-weight': 600, 'text-anchor': 'middle' }, g);
+      // (the label centred in the cap, middle to middle, whatever its size: the cap runs from y - 2 to y + 9)
+      const t = this.el('text', { x: X(x + w / 2), y: Y(y + 3.5), 'dominant-baseline': 'central', fill: rgb(15), 'font-family': SANS, 'font-size': label.length > 1 ? 13 : 16, 'font-weight': 600, 'text-anchor': 'middle' }, g);
       t.textContent = this.modern(label);
     }
     if (add) { this.add(y - 2, y + 8, g, { covers: false, left: x, right: x + w }); this.items.at(-1).cap = true; } else parent.append(g);
@@ -372,7 +375,7 @@ export class View {
         if (!word) return;
         left = Math.min(left, word.x); right = Math.max(right, word.x + word.width);
         if (!this.cleanText) { this.glyphs(g, word.chars, word.x, top, line.ink, tall, line.paper); word = null; return; }
-        const el = this.el('text', { y: Y(top + (tall ? 15 : 7)), 'data-x': X(word.x), 'data-width': X(word.width) }, g);
+        const el = this.el('text', { y: Y(top + (tall ? TALL_BASELINE : BASELINE)), 'data-x': X(word.x), 'data-width': X(word.width) }, g);
         // the part of a line before its first color is drawn in the ink the whole line ends with
         for (const c of word.chars) { const span = this.el('tspan', { fill: rgb(c.ink ?? line.ink) }, el); span.textContent = this.modern(c.ch); }
         word = null;
@@ -416,7 +419,7 @@ export class View {
     for (const part of text.split(' ')) {
       if (part) {
         let w = 0; for (const ch of part) w += width(ch) + 1;
-        const el = this.el('text', { y: Y(y + 7), 'data-x': X(x), 'data-width': X(w - 1) }, g);
+        const el = this.el('text', { y: Y(y + BASELINE), 'data-x': X(x), 'data-width': X(w - 1) }, g);
         el.textContent = this.modern(part);
         x += w;
       }
@@ -448,10 +451,8 @@ export class View {
     const name = step.words?.[0] ?? step.name;
     if (name === 'wait' || name === 'wait-erase' || name === 'wait-or-escape') {
       const y = (e.mem[this.vars.layout] & 15) === 1 ? 178 : 170;
-      const g = this.el('g', { class: 'key', 'data-key': 32 }, this.prompt);
-      this.el('rect', { x: X(46), y: Y(y), width: X(47), height: Y(11), rx: 4, fill: rgb(1), stroke: rgb(13), 'stroke-width': 3 }, g);
-      if (!this.cleanText) this.glyphs(g, 'SPACE BAR', 48, y + 2, 15);
-      else { const t = this.el('text', { x: X(69.5), y: Y(y + 8), fill: rgb(15), 'font-family': SANS, 'font-size': 15, 'font-weight': 600, 'text-anchor': 'middle' }, g); t.textContent = 'SPACE BAR'; }
+      // (the SPACE BAR button is a key cap 47 dots wide, drawn as every cap is)
+      const g = this.cap('SPACE BAR', 46, y + 2, this.prompt, false, 32, 47);
       this.spaceBar = { y, erase: name === 'wait-erase', el: g };
     } else if (name === 'ask' || name === 'ask-mode' || name === 'ask-escape') {
       this.rect(1, 162, 138, 28, 5, this.prompt);   // box 2 inside its white edges, as panel 5 clears it
