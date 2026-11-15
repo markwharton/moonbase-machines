@@ -23,8 +23,10 @@ const IDLE = 2000;
 const REGS = ['pc', 'sp', 'a', 'x', 'y', 'n', 'v', 'd', 'i', 'z', 'c'];
 
 export class Toolkit {
-  // `entries`: the addresses of the scenes' own code, each [script, label] (the title's `entries`)
-  constructor(game, entries = {}) {
+  // `entries`: the addresses of the scenes' own code, each [script, label] (the title's `entries`); `menu`, the Main
+  // Menu's, which the key reader jumps to on control-E
+  constructor(game, entries = {}, menu) {
+    this.menu = menu;
     const m = this.m = new Machine(game, { log: () => {} });
     m.lc.aux[1] = m.aux.subarray(0xd000, 0xe000); m.lc.aux[2] = m.aux.subarray(0xe000);
     // (a read's time, which the Remake waits as a delay, as the Original's page has the disk take it)
@@ -51,7 +53,7 @@ export class Toolkit {
 
   // The 6502 from where it is until `done()`, on the engine's clock. A disk's read takes the time it takes, as a
   // delay. A JSR into the scenes' own code runs it there, inside the step (Engine.runInside), and goes on as it
-  // returns. 'wait' at the poll with no key that begins a wait; 'quit' when the game quits.
+  // returns. 'wait' at the poll with no key that begins a wait; 'quit' when the game quits, 'menu' at the Main Menu.
   go(e, done) {
     const m = this.m, cpu = m.cpu;
     cpu.cycles = e.cycles; this.jsr = false;
@@ -61,6 +63,7 @@ export class Toolkit {
       if (n > 1e8) throw new Error('the toolkit runs on without end at $' + cpu.pc.toString(16));
       if (m.reading) { e.delay += Math.max(0, m.reading.at - cpu.cycles) / CYCLES_PER_MS; m.reading.arrive(); m.reading = null; }
       if (m.halted) { r = m.halted; m.halted = false; break; }
+      if (cpu.pc === this.menu) { r = 'menu'; break; }
       const to = this.entries.get(cpu.pc);
       if (to && this.jsr) { this.inside(e, to); continue; }
       const before = m.idle, none = !(m.key & 0x80);

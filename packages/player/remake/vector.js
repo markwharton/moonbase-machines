@@ -133,17 +133,18 @@ export function vectorRoutines(title) {
   const backOf = (e, step) => (step.at + 3 + inline(e, step)) & 0xffff;
   // the address of the script's next line, where a span of code that is one step ends
   const nextAt = (e, step) => e.program.steps[step.index + 1]?.at;
-  // A key for a routine that waits for one: control-E goes to the Main Menu, dropping what waits, and Nature Park's
-  // keys for its menus visit them; any other goes into the machine's keyboard for the routine. Gives the key, or
-  // undefined while there is none.
+  // A key for a routine that waits for one, into the machine's keyboard, whose key reader jumps to the Main Menu on
+  // control-E (`menu`, below); Nature Park's keys for its menus visit them. Gives the key, or undefined while there
+  // is none.
   const keyFor = (e, step) => {
     const k = e.key();
     if (k === undefined) return;
-    if (k === KEY.menu && title.menu) { kit.drop(); e.leave(...title.menu); }
     if (title.visit?.[k]) { e.visit(k); return; }
     if (k >= 0) kit.press(k);
     return k;
   };
+  // the machine's key reader at the Main Menu: what was running is dropped, as the original's jump drops it
+  const menu = e => { kit.drop(); e.leave(...title.menu); };
 
   // A routine of the toolkit's: the step's inputs and its event, the view's drawing (`draw`, from the inputs), then
   // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
@@ -168,6 +169,7 @@ export function vectorRoutines(title) {
     const r = kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
     if (r === 'wait') { e.waitingOn = step; return 'wait'; }
     e.waitingOn = null;
+    if (r === 'menu') return menu(e);
     if (r === 'quit') { e.ended = true; return; }
     after?.(e);
     if (GIVES[name] && !POLLS.has(name)) e.emit(result(name, e));
@@ -322,7 +324,7 @@ export function vectorRoutines(title) {
       if (e.waitingOn !== step) { e.waitingOn = step; e.asked = null; }
       if (keyFor(e, step) === undefined && !(e.busy && e.inside)) return 'wait';
       e.waitingOn = null;
-      kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
+      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) }) === 'menu') return menu(e);
       if (e.a) e.emit(result('read-key', e));
     },
 
@@ -333,7 +335,7 @@ export function vectorRoutines(title) {
       if (e.waitingOn !== step) { e.waitingOn = step; e.emit(describe('tick', [], e)); }
       if (keyFor(e, step) === undefined) return 'wait';
       e.waitingOn = null;
-      kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
+      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) }) === 'menu') return menu(e);
       e.emit(result('tick', e));
     },
 
@@ -414,7 +416,7 @@ export function vectorRoutines(title) {
   // timed by their instructions, as the original's are (Engine.time). Its disk is the one a route takes out and puts
   // back.
   routines.setup = e => {
-    kit = e.kit = new Toolkit(title.disk, title.entries);
+    kit = e.kit = new Toolkit(title.disk, title.entries, title.menu && title.map.menu);
     e.mem = kit.mem;
     title.files = kit.m.disk;
     kit.boot(e, e.script(title.start).steps[0]?.at ?? 0x4000);
