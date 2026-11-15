@@ -9,5 +9,8 @@ And for taking a title's disks apart: a 1541 disk read as well as written (`d64.
 as the 64 lists it (`basic-list.js`); and what the VIC-II shows as a picture, from a 64's memory and registers
 (`picture.js`).
 
+And for a title's map: the KERNAL's jump table by address, and what each of its routines takes and gives as a step
+(`steps.js`).
+
 Part of Moonbase (moonbase.au): Mark Wharton's titles of 1985 to 1995, running again in the browser
 on these machines. MIT; see LICENSE. Each file opens with what it is and what it covers.
