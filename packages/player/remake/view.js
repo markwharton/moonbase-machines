@@ -10,7 +10,7 @@ import { pictures } from '@moonbase-machines/vector/pictures.js';
 import { tables, put } from '@moonbase-machines/vector/objects.js';
 import { codeFiles } from '@moonbase-machines/vector/code-files.js';
 import { elements } from '@moonbase-machines/vector/svg.js';
-import { width, dots } from '@moonbase-machines/vector/font.js';
+import { width, dots, useFont } from '@moonbase-machines/vector/font.js';
 import { layout, resolve, LAYOUT, PANELS, textLayout, textPen, textPage } from './layout.js';
 import { FONT } from '@moonbase-machines/charset/font.js';
 import { colors } from '@moonbase-machines/apple2e/screen.js';
@@ -38,6 +38,8 @@ export class View {
     this.svg = svg; this.engine = engine; this.extra = extra; this.press = press; this.cleanText = true;
     svg.setAttribute('viewBox', '0 0 560 384');
     fitWhenLoaded(svg);   // (the words fitted again once Inter has loaded)
+    // the title's own glyphs, where its font differs from the toolkit's (its title.js `font`)
+    useFont(engine.title.font);
     this.disk = disk.volumes[volume];
     this.pictures = new Map();
     for (const [name, f] of Object.entries(disk.volumes[volume])) if (/^PICS\d$/.test(name)) for (const p of pictures(Uint8Array.from(atob(f.data), c => c.charCodeAt(0)))) this.pictures.set(p.name, p.shapes);
