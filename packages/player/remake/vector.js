@@ -1,17 +1,16 @@
-// The routines of a vector engine title, for the remake engine, as its title.js `map` names them: what each step
-// of a scene does. Each gives the event the original's routine gives
-// (events.js), does what the original did to the registers, the flags and the memory that the
-// scenes read, and paints the original's screen for the scenes that read it back. The rules for
-// the keys, the random numbers and the waits are the original's, from PART0 (docs in
-// @moonbase-machines/vector's README).
+// The routines of a vector engine title, for the remake engine, as its title.js `map` names them: what each step of a
+// scene does. Each gives the event the original's routine gives (events.js) and paints the original's screen for the
+// view; the routine itself runs on the Original's machine (toolkit.js), which leaves the registers, the flags, the
+// memory, the time and the speaker's clicks as the game's own code does. What is kept here is what the view shows: the
+// screen dot for dot, the text screen, the pen, and what an ask has been given.
 import { describe, result, TAKES, GIVES, POLLS, WAITS, nothing } from './events.js';
-import { tables, carry } from '@moonbase-machines/vector/objects.js';
-import { pictures, shapes } from '@moonbase-machines/vector/pictures.js';
-import { inside } from '@moonbase-machines/vector/draw.js';
+import { tables } from '@moonbase-machines/vector/objects.js';
+import { pictures } from '@moonbase-machines/vector/pictures.js';
 import { width, useFont } from '@moonbase-machines/vector/font.js';
 import { Raster } from './raster.js';
 import { label16 } from './engine.js';
-import { Files } from '@moonbase-machines/apple2e/mli.js';
+import { Toolkit } from './toolkit.js';
+import { INLINE } from '@moonbase-machines/vector/inline.js';
 import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout.js';
 
 // A vector title's map (its title.js `map`): `volume`, its disk's volume; `objects`, the routine that sets the table
@@ -20,10 +19,9 @@ import { layout, resolve, PANELS, textLayout, textPen, textPage } from './layout
 // menus instead, the screen kept and put back (Nature Park's); `keyPanel`, the arrows' panel; `vars`, where the
 // engine keeps what the remake reads (`zero`, how far up the zero page its routines' inputs are; the screen's
 // layout; the difficulty; practice; repeats; the sound flag, on with its `soundOn` bit); `loads`, where its code
-// files load when its catalog has lost it; `askClearsCarry`, `countInX`; `modern`, characters a modern font draws
-// otherwise; `routines`, its engine's routines by address, each the name of its step; `problems`, each problem's own
-// routines that draw, by the problem's number; `askCalls`, the problem's own routines the ask calls in its arrow mode
-// as a choice is made (`chose`) and taken back (`undo`), by address.
+// files load when its catalog has lost it; `modern`, characters a modern font draws otherwise; `routines`, its
+// engine's routines by address, each the name of its step; `problems`, each problem's own routines, by the problem's
+// number.
 
 // A game's code files, PART0, the parts and the problems, each with the address it loads at: the map's `loads`, by
 // the file's name or its name without the digit, or else the catalog's
@@ -51,20 +49,7 @@ function inputs(e, name, args) {
   return { fixed, rest: args.slice(k) };
 }
 
-// A step that takes a key: its event once, then it waits until a key comes. Control-E, at any
-// key the original read, went to the Main Menu and dropped everything called.
-function waiting(e, step, name, fixed, words, take) {
-  if (e.waitingOn !== step) { e.emit(describe(name, fixed, e, words)); e.waitingOn = step; e.asked = null; }
-  for (;;) {
-    const k = e.key();
-    if (k === undefined) return 'wait';
-    if (k === KEY.menu && e.title.menu) e.leave(...e.title.menu);
-    if (e.title.visit?.[k]) { e.visit(k); return 'wait'; }
-    if (take(k)) { e.waitingOn = null; return; }
-  }
-}
-
-// The disk's objects, by the address of their table, for the carry the object routine leaves.
+// The disk's objects, by the address of their table, for the screen model.
 // `title.disk` is the title's disk from its game's data.
 function objectsOf(title) {
   if (title.objectTables || !title.disk) return title.objectTables;
@@ -100,15 +85,8 @@ export function vectorRoutines(title) {
   // a code file of the game's, PART0 to PART3 and PROB1 to PROB8, with the address it loads at (`codeFiles`)
   const codeFile = name => title.disk && (title.codeFiles ??= codeFiles(title.map, Object.values(title.disk.volumes)[0])).find(f => f.name === name);
   useFont(title.font);
-  // what an object's routine leaves: the carry, and in the row its rows were counted in (zero
-  // page $02 from the engine's), the row past the object's bottom, which a span after it may take
-  const objectCarry = e => {
-    if (e.a < 2) return;   // putting ground back ends another way; no scene is known to use its carry
-    const o = objectsOf(title)?.get(e.objectTable)?.find(o => o.number === e.a);
-    if (o) { e.c = carry(o, e.x); e.mem[Z(0x02)] = (e.y + o.height) & 0xff; }
-  };
-  // The original's screen, dot for dot (raster.js), which each step paints as the original's
-  // routine painted, for read-dot; and the text state that lasts from text to text.
+  // The original's screen, dot for dot (raster.js), which each step paints as the original's routine painted, for
+  // the view; and the text state that lasts from text to text.
   const raster = title.raster ??= new Raster();
   const pen = title.pen ??= { x: 0, y: 0, margin: 0, centre: false, spacing: 1, gap: 0, ink: 15, paper: 10 };
   // The text screen, where the menus are: its characters, its pen, and whether it is showing.
@@ -134,348 +112,317 @@ export function vectorRoutines(title) {
     k.caps.forEach(([cx, cy, ch], i) => { if (!n || n === i + 1) { pen.x = cx; pen.y = cy; cap(String.fromCharCode(ch & 0x7f)); } });
     Object.assign(pen, { x, y });
   };
-  // A text on the graphics screen, as $6CE2 paints it. The original's line drawer keeps the row of each line it
-  // draws at 2 in the zero page ($6F5B in Animal Rescue, $643C in Nature Park), and a scene may read it there.
-  const print = (e, words) => {
-    for (const line of layout(resolve(words, e.mem), pen)) {
-      e.mem[Z(0x02)] = line.top;
-      for (const c of line.chars) raster.glyph(c.ch, c.x, line.top, c.ink ?? line.ink, line.paper, line.tall ? 2 : 1, line.height, pen.spacing);
-    }
-  };
-  // $5F4B ($549C in Nature Park): rows of the screen from Y filled in colour A, X of them, white at the ends with the
-  // carry set, stopping at the screen's bottom. It leaves at 2 in the zero page and in A the row after the last it
-  // filled, at 15 the rows it did not reach, at 0 $00 for edges or $FF, at 5 the colour times four and at 6 1; X the
-  // colour's place in its table and 2, Y 40, and the carry set only if it stopped at row 192 ($5FA0).
-  const fillRows = (e, c, count, first, edges) => {
-    let y = first, n = count, bottom;
-    for (;;) { raster.rows(c, 1, y, edges); y = (y + 1) & 0xff; if ((bottom = y >= 0xc0)) break; n = (n - 1) & 0xff; if (!n) break; }
-    const m = e.mem; m[Z(2)] = y; m[Z(0x0f)] = n; m[Z(0)] = edges ? 0 : 0xff; m[Z(5)] = c << 2 & 0xff; m[Z(6)] = 1;
-    e.x = (c << 2) + 2 & 0xff; e.y = 40; e.a = y; e.compare(y, 0xc0); e.c = bottom ? 1 : 0;
-  };
+  // a text on the graphics screen, as $6CE2 paints it
+  const print = (e, words) => { for (const line of layout(resolve(words, e.mem), pen)) for (const c of line.chars) raster.glyph(c.ch, c.x, line.top, c.ink ?? line.ink, line.paper, line.tall ? 2 : 1, line.height, pen.spacing); };
   // object n of the table set last, put as `how` ('whole', 'keep' or 'clear')
   const put = (e, n, x, y, how) => { const o = objectOf(e, n); if (o) raster.object(o, x, y, how); };
   // what a title's painters (titles/<title>/paint.js) paint the model with
   title.model = { raster, pen, cap, keyPanel, print, put };
-  const simple = (name, draw) => (e, args, step) => {
-    let { fixed, rest } = inputs(e, name, args);
-    const words = rest.map(r => typeof r === 'object' ? r.string : r).join(' ');
-    e.emit(describe(name, fixed, e, rest.length ? words : undefined, z => e.mem[Z(z)]));
-    rest = rest.map(r => typeof r === 'object' ? r.string : r);
-    draw?.(e, fixed, rest);
+
+  // The toolkit runs on the Original's machine (toolkit.js), made as the engine starts (`setup`). A step's routine
+  // starts at its own address, for a step there (the lifter's, for a routine reached by a jump or by running on
+  // into it), or else where the JSR or the JMP at the step's address goes; it comes back past the data a JSR's
+  // routine takes inline.
+  // (a problem's own routines are where that problem's file is, so they count only while its script runs)
+  let kit = null;
+  const map = new Set(Object.keys(title.map.routines).map(Number));
+  const owned = Object.fromEntries(Object.entries(title.map.problems ?? {}).map(([n, r]) => ['prob' + n, new Set(Object.keys(r).map(Number))]));
+  const own = (e, at) => map.has(at) || !!owned[e.name]?.has(at);
+  const routineAt = (e, step) => { const m = kit.mem, op = m[step.at]; return own(e, step.at) || (op !== 0x20 && op !== 0x4c) ? step.at : m[step.at + 1] | m[step.at + 2] << 8; };
+  const inline = (e, step) => INLINE[step.words[0]] && e.mem[step.at] === 0x20 && !own(e, step.at) ? INLINE[step.words[0]](a => e.mem[a & 0xffff], step.at + 3).length : 0;
+  const backOf = (e, step) => (step.at + 3 + inline(e, step)) & 0xffff;
+  // the address of the script's next line, where a span of code that is one step ends
+  const nextAt = (e, step) => e.program.steps[step.index + 1]?.at;
+  // A key for a routine that waits for one: control-E goes to the Main Menu, dropping what waits, and Nature Park's
+  // keys for its menus visit them; any other goes into the machine's keyboard for the routine. Gives the key, or
+  // undefined while there is none.
+  const keyFor = (e, step) => {
+    const k = e.key();
+    if (k === undefined) return;
+    if (k === KEY.menu && title.menu) { kit.drop(); e.leave(...title.menu); }
+    if (title.visit?.[k]) { e.visit(k); return; }
+    if (k >= 0) kit.press(k);
+    return k;
   };
-  // $641B: A $80 asks for an arrow, $B1 to $B9 a digit from 1, any other a letter from A. The
-  // key chosen is then confirmed with return, or taken back with delete or the left arrow.
-  // Gives X the key's place from 0, Y twice that, and A the key, its high bit set from 'A' up.
-  // Animal Rescue's leaves the carry set for a letter ($6572); Nature Park's clears it ($5A56).
-  // Nature Park's $58DA, ask-escape, also takes escape, at either key, and gives A 27 and the
-  // carry set, and X the keyboard's byte for it, $9B, as the key read left it ($5A58, a jump into
-  // the middle of a BIT that leaves only SEC and RTS).
-  const letterCarry = !title.map.askClearsCarry;
-  // The problem's own routines the ask calls as a choice is made and taken back ($6415, in PROB2 of one title), by the
-  // map (`askCalls`, by address, where the title's `entries` say they are in its lifted code), each with A the
-  // choice's place and 2 ($64E6), run inside the ask: drawing that is no step.
-  const calls = (e, kind, place) => {
-    for (const a of title.map.askCalls?.[kind] ?? []) { e.a = (place + 2) & 0xff; e.runInside(...title.entries['$' + a.toString(16).toUpperCase().padStart(4, '0')]); }
+
+  // A routine of the toolkit's: the step's inputs and its event, the view's drawing (`draw`, from the inputs), then
+  // the routine on the machine, which leaves the registers, the memory, the time and the speaker's clicks; then what
+  // the view draws from what it left (`after`), and its result (events.js `GIVES`). One that waits for a key stops
+  // there, and its step runs again with each key (`keys`, for what the view shows of it). A name that starts with a
+  // dot is no step.
+  const routine = (name, { draw, after, words, keys } = {}) => (e, args, step) => {
+    // (called by the engine itself, with no step, as a visit to the menus shows the graphics again: its event and its
+    // drawing only)
+    if (!step) { inputs(e, name, args); e.emit(describe(name, [], e)); draw?.(e, [], []); return; }
+    if (!kit.waits(step)) {
+      const { fixed, rest } = inputs(e, name, args);
+      const regs = [e.a, e.x, e.y, e.n, e.z, e.c, e.v];
+      if (!name.startsWith('.') && !(name === 'beep' && nothing('beep', e.a))) e.emit(describe(name, fixed, e, words ? words(e, rest) : rest.length ? rest.map(r => r.string ?? r).join(' ') : undefined, z => e.mem[Z(z)], a => e.mem[a]));
+      draw?.(e, fixed, rest.map(r => r.string ?? r));
+      [e.a, e.x, e.y, e.n, e.z, e.c, e.v] = regs;   // (a painter's own use of them)
+    } else {
+      const k = keyFor(e, step);
+      if (k === undefined) return 'wait';
+      keys?.(e, k);
+    }
+    const r = kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
+    if (r === 'wait') { e.waitingOn = step; return 'wait'; }
+    e.waitingOn = null;
+    if (r === 'quit') { e.ended = true; return; }
+    after?.(e);
+    if (GIVES[name] && !POLLS.has(name)) e.emit(result(name, e));
   };
-  const asking = name => (e, args, step) => {
-    if (e.waitingOn !== step) inputs(e, name, args);
-    const mode = e.waitingOn === step ? e.askMode : e.a;
-    e.askMode = mode;
-    const arrows = [KEY.left, KEY.right, KEY.down, KEY.up];
-    if (mode === 0x80 && e.waitingOn !== step) keyPanel(0);
-    const r = waiting(e, step, name, [], undefined, k => {
-      if (name === 'ask-escape' && k === KEY.escape) { e.a = e.flags(27); e.x = 0x9b; e.c = 1; e.asked = null; return true; }
+  // A span of the game's code that a script has as one step, from the step's address to the script's next line: its
+  // drawing for the view, which is no step of the transcript.
+  const span = (name, draw) => (e, args, step) => {
+    draw?.(e, args);
+    if (name) { e.inside++; e.emit({ step: name }); e.inside--; }
+    const r = kit.span(e, nextAt(e, step), { at: step.at });
+    if (r === 'quit') e.ended = true;
+  };
+
+  // $641B: A $80 asks for an arrow, $B1 to $B9 a digit from 1, any other a letter from A, and the key chosen is
+  // confirmed with return or taken back with delete or the left arrow. The machine asks; what the view shows of it,
+  // the mode and the key chosen so far, is kept here as the keys go in.
+  const asking = name => routine(name, {
+    draw: e => { e.askMode = e.a; e.asked = null; if (e.a === 0x80) keyPanel(0); },
+    keys: (e, k) => {
+      const mode = e.askMode, arrows = [KEY.left, KEY.right, KEY.down, KEY.up];
+      if (name === 'ask-escape' && k === KEY.escape) { e.asked = null; return; }
       if (e.asked === null) {
         let place = -1, key = k;
         if (mode === 0x80) { place = arrows.indexOf(k); key = 0xdb + place; if (place >= 0) keyPanel(place + 1); }
         else if (mode >= 0xb1 && mode < 0xba) { if (k >= 0x31 && k <= (mode & 0x7f)) place = k - 0x31; }
         else { key = k & 0x5f; if (key >= 0x41 && key <= (mode & 0x5f & 0x7f)) { place = key - 0x41; key |= 0x80; } }
-        if (place >= 0) { e.asked = { place, key }; if (name === 'ask-mode') calls(e, 'chose', place); }
-        return false;
+        if (place >= 0) e.asked = { place, key };
+        return;
       }
-      if (k === KEY.return) { e.x = e.asked.place; e.y = 2 * e.x; e.a = e.asked.key; e.c = letterCarry && e.a >= 0xc1 ? 1 : 0; return true; }
-      if (k === KEY.delete || k === KEY.left) { if (name === 'ask-mode') calls(e, 'undo', e.asked.place); if (mode === 0x80) keyPanel(0); e.asked = null; }
-      return false;
-    });
-    if (r !== 'wait') { e.mem[V.layout] = 0x22; e.emit(result(name, e)); }   // $655E: panel 6, which sets $22
-    return r;
-  };
+      if (k === KEY.delete || k === KEY.left) { if (mode === 0x80) keyPanel(0); e.asked = null; }
+      if (k === KEY.return) e.asked = null;
+    },
+  });
 
   const routines = {
-    // graphics shown: $C01D reads with its high bit set, as a scene may test before it shows them
-    show: simple('show', e => { title.text.showing = false; e.mem[0xc01d] = 0x80; }),
+    // graphics shown, which the view draws
+    show: routine('show', { draw: () => { title.text.showing = false; } }),
     // $573D: the text screen cleared ($7645) and shown ($5BCB), which the view draws and is no step
-    'text-screen': e => {
-      Object.assign(title.text, { showing: true, page: textPage() });
-      e.mem[0xc01d] = 0;
-      e.inside++; e.emit({ step: 'text-screen' }); e.inside--;
-    },
-    // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}). The
-    // loader copies the picture's shapes to $E000 and the routine draws them from there, so a scene can read them.
-    // It returns the number of shapes it drew in A, and their address in X and Y, the carry clear ($7B94 in Animal
-    // Rescue, $7084 in Nature Park).
-    picture: (e, args) => {
-      inputs(e, 'picture', args);
-      const name = filled(args.map(a => typeof a === 'object' ? a.string : a).join(' '), e.mem);
-      e.emit(describe('picture', [], e, name, z => e.mem[Z(z)]));
-      const p = pictureOf(title, name);
-      if (!p) return;
-      e.mem.set(p.bytes, 0xe000);
-      raster.picture(p.shapes);
-      e.a = p.shapes.length & 0xff; e.x = 0; e.y = e.flags(0xe0); e.c = 0;
-    },
-    box: simple('box', e => raster.box(e.mem[V.layout], e.a, e.x, e.y)),
-    // A panel sets the layout it clears to, as the original's panels do ($6299 and the rest). Its own text sets the
-    // pen and draws one line at the pen's row, which the line drawer keeps at 2 in the zero page, as for any text.
-    panel: simple('panel', (e, [n]) => {
-      const p = PANELS[n];
-      if (!p) return;
-      e.mem[V.layout] = p.layout;
-      raster.panel(p.rows[0], p.rows[1], p.fill);
-      for (const y of p.more ?? []) raster.whiteLines(y);
-      Object.assign(pen, { paper: p.paper, ink: p.ink, centre: true, spacing: 1, gap: p.gap, y: p.y });
-      e.mem[Z(0x02)] = p.y;
+    'text-screen': span('text-screen', () => Object.assign(title.text, { showing: true, page: textPage() })),
+    // A picture by its name, which a scene may finish as it runs, as PROB1 writes its pattern's digit ({$0C48}): the
+    // view draws its shapes.
+    picture: routine('picture', {
+      words: (e, rest) => filled(rest.map(r => r.string ?? r).join(' '), e.mem),
+      draw: (e, f, rest) => { const p = pictureOf(title, filled(rest.join(' '), e.mem)); if (p) raster.picture(p.shapes); },
+    }),
+    box: routine('box', { draw: e => raster.box(e.mem[V.layout], e.a, e.x, e.y) }),
+    // a panel's rows, its colours and its pen, as the original's panels set them ($6299 and the rest)
+    panel: routine('panel', {
+      draw: (e, [n]) => {
+        const p = PANELS[n];
+        if (!p) return;
+        raster.panel(p.rows[0], p.rows[1], p.fill);
+        for (const y of p.more ?? []) raster.whiteLines(y);
+        Object.assign(pen, { paper: p.paper, ink: p.ink, centre: true, spacing: 1, gap: p.gap, y: p.y });
+      },
     }),
     // A text, with the bytes the scene's code writes into it before printing it read from memory when it is shown
     // (`filled`). On the text screen the text goes into its characters, and the graphics stay as they are.
-    text: (e, args) => {
-      const words = filled(args[0].string, e.mem);
-      e.emit(describe('text', [], e, words));
-      if (title.text.showing) { for (const c of textLayout(resolve(words, e.mem), title.text.pen)) if (title.text.page[c.row]?.[c.col]) title.text.page[c.row][c.col] = { ch: c.ch, inverse: c.inverse }; return; }
-      print(e, words);
-    },
-    objects: simple('objects', e => { e.objectTable = e.x | e.y << 8; }),
-    // an object drawn leaves the carry the original's routine left ($6B0F), which a scene may add in
-    object: simple('object', e => { drawObject(e, 'whole'); objectCarry(e); }),
-    'object-keep': simple('object-keep', e => { drawObject(e, 'keep'); objectCarry(e); }),
+    text: routine('text', {
+      words: (e, rest) => filled(rest[0].string, e.mem),
+      draw: (e, f, [words]) => {
+        words = filled(words, e.mem);
+        if (title.text.showing) { for (const c of textLayout(resolve(words, e.mem), title.text.pen)) if (title.text.page[c.row]?.[c.col]) title.text.page[c.row][c.col] = { ch: c.ch, inverse: c.inverse }; return; }
+        print(e, words);
+      },
+    }),
+    objects: routine('objects', { draw: e => { e.objectTable = e.x | e.y << 8; } }),
+    object: routine('object', { draw: e => drawObject(e, 'whole') }),
+    'object-keep': routine('object-keep', { draw: e => drawObject(e, 'keep') }),
     // $6863: the clear color shows the ground, from a buffer of its own, and no ground is kept
-    'object-mode': simple('object-mode', e => drawObject(e, 'clear')),
+    'object-mode': routine('object-mode', { draw: e => drawObject(e, 'clear') }),
     // $76ED sets the pen to X and Y, and goes on into $76F3
-    'key-at': simple('key-at', e => { pen.x = e.x; pen.y = e.y; cap(String.fromCharCode(e.a & 0x7f)); }),
-    key: simple('key', e => cap(String.fromCharCode(e.a & 0x7f))),
-    'white-lines': simple('white-lines', e => raster.whiteLines(e.y)),
-    'fill-rows': simple('fill-rows', e => fillRows(e, e.a, e.x, e.y, e.c)),
-    span: simple('span', e => raster.span(e.a, e.x, e.y, e.mem[Z(0x02)])),
-    // a dot, which returns with A its place in its group of seven times 16, and its color ($5B45)
-    dot: simple('dot', e => { raster.set(e.x, e.y, e.a); e.a = (e.x % 7) << 4 | e.a & 15; }),
-    line: simple('line', e => raster.line(e.mem[Z(0x11)], e.mem[Z(0x00)], e.mem[Z(0x02)], e.mem[Z(0x01)], e.mem[Z(0x03)])),
+    'key-at': routine('key-at', { draw: e => { pen.x = e.x; pen.y = e.y; cap(String.fromCharCode(e.a & 0x7f)); } }),
+    key: routine('key', { draw: e => cap(String.fromCharCode(e.a & 0x7f)) }),
+    'white-lines': routine('white-lines', { draw: e => raster.whiteLines(e.y) }),
+    'fill-rows': routine('fill-rows', { draw: e => raster.rows(e.a, e.x, e.y, e.c) }),
+    span: routine('span', { draw: e => raster.span(e.a, e.x, e.y, e.mem[Z(0x02)]) }),
+    dot: routine('dot', { draw: e => raster.set(e.x, e.y, e.a) }),
+    line: routine('line', { draw: e => raster.line(e.mem[Z(0x11)], e.mem[Z(0x00)], e.mem[Z(0x02)], e.mem[Z(0x01)], e.mem[Z(0x03)]) }),
     // $67B9 fills columns x to x + $0E, both ends, down $0F rows; $677E's four lines go from x to
     // x + $0E and from y to y + $0F
-    rectangle: simple('rectangle', e => raster.rectangle(e.a, e.x, e.y, e.mem[Z(0x0e)] + 1, e.mem[Z(0x0f)])),
-    'rectangle-outline': simple('rectangle-outline', e => raster.outline(e.a, e.x, e.y, e.mem[Z(0x0e)] + 1, e.mem[Z(0x0f)] + 1)),
-    flash: simple('flash'),
-    // $5B4C: the color of a dot of the original's screen, from the screen model
-    'read-dot': (e, args) => { inputs(e, 'read-dot', args); e.emit(describe('read-dot', [], e)); e.a = e.flags(raster.get(e.x, e.y)); e.emit(result('read-dot', e)); },
-    // the point test ($7144 in Nature Park): whether the dot at X and Y is inside the shape whose bytes start at the
-    // address kept at $60, in A as the engine gives it (draw.js `inside`)
-    inside: (e, args) => { inputs(e, 'inside', args); e.emit(describe('inside', [], e)); e.a = e.flags(inside(shapes(a => e.mem[a], e.mem[0x60] | e.mem[0x61] << 8)[0], e.x, e.y)); e.emit(result('inside', e)); },
-    'key-panel': simple('key-panel', e => keyPanel(e.a)), 'keep-span': simple('keep-span'), 'put-span': simple('put-span'), 'invert-span': simple('invert-span'),
+    rectangle: routine('rectangle', { draw: e => raster.rectangle(e.a, e.x, e.y, e.mem[Z(0x0e)] + 1, e.mem[Z(0x0f)]) }),
+    'rectangle-outline': routine('rectangle-outline', { draw: e => raster.outline(e.a, e.x, e.y, e.mem[Z(0x0e)] + 1, e.mem[Z(0x0f)] + 1) }),
+    flash: routine('flash'),
+    'read-dot': routine('read-dot'),
+    inside: routine('inside'),
+    'key-panel': routine('key-panel', { draw: e => keyPanel(e.a) }),
+    'keep-span': routine('keep-span'), 'put-span': routine('put-span'), 'invert-span': routine('invert-span'),
     // the space bar's button, which a busy routine draws as it is about to wait for the space bar
-    button: simple('button', e => { if (e.inside) e.busy = null; }),
+    button: routine('button', { draw: e => { if (e.inside) e.busy = null; } }),
     // a beep of 0 does nothing, and is no step (events.js)
-    beep: (e, args) => { inputs(e, 'beep', args); if (!nothing('beep', e.a)) e.emit(describe('beep', [], e)); },
+    beep: routine('beep'),
     // a sound's five bytes; a byte may be an address, for one the scene's code writes before it plays
-    sound: (e, args) => e.emit(describe('sound', [], e, args.map(b => b.startsWith('$') ? e.mem[parseInt(b.slice(1), 16)].toString(16) : b).join(' '))),
+    sound: routine('sound', { words: (e, rest) => rest.map(b => b.startsWith('$') ? e.mem[parseInt(b.slice(1), 16)].toString(16) : b).join(' ') }),
     // PART3's own code, written at $E000, moves the picture a step to the left: drawn, and no step
-    scroll: e => { raster.scroll(); e.inside++; e.emit({ step: 'scroll' }); e.inside--; },
+    scroll: span('scroll', () => raster.scroll()),
     // Nature Park's PART3 at $9796: the dots from `left` to `right` of rows `top` to `bottom` copied
     // `by` rows down, from the bottom row up, so the rows at the top stay to be copied again:
     // drawing, and no step
-    'shift-down': (e, args) => {
+    'shift-down': (e, args, step) => {
       const [left, right, top, bottom, by] = args.map(Number);
       for (let r = bottom; r >= top; r--) for (let x = left; x <= right; x++) raster.set(x, r + by, raster.get(x, r));
       e.inside++; e.emit({ step: 'shift-down', left, right, top, bottom, by }); e.inside--;
+      kit.span(e, nextAt(e, step), { at: step.at });
     },
-    // a part's title marks where the original's loader starts a part
-    part: simple('part'),
+    // a part's title marks where the original's loader starts a part: the scene's own code, and only a step
+    part: (e, args) => { const { fixed } = inputs(e, 'part', args); e.emit(describe('part', fixed, e)); },
 
-    // the waits, $5C23, $5C08 and $5C20: the space bar, or for the last escape too, which it
-    // returns with the carry set
-    wait: (e, args, step) => waiting(e, step, 'wait', [], undefined, k => k === KEY.space && (e.a = 32, e.c = 0, true)),
-    // the space bar, as wait takes it, and then its button's rows filled in colour 5 with white ends ($5C08): eleven
-    // from row $B2 with the layout's first window, else from $AA
-    'wait-erase': (e, args, step) => {
-      const r = waiting(e, step, 'wait-erase', [], undefined, k => k === KEY.space);
-      if (r !== 'wait') fillRows(e, 5, 11, (e.mem[V.layout] & 0x0f) === 1 ? 0xb2 : 0xaa, 1);
-      return r;
-    },
-    'wait-or-escape': (e, args, step) => {
-      const r = waiting(e, step, 'wait-or-escape', [], undefined, k => (k === KEY.space || k === KEY.escape) && (e.c = k === KEY.escape ? 1 : 0, e.a = k, true));
-      if (r !== 'wait') e.emit(result('wait-or-escape', e));
-      return r;
-    },
+    // the waits, $5C23, $5C08 and $5C20: the space bar, or for the last escape too; the second then fills its
+    // button's rows ($5C08): eleven from row $B2 with the layout's first window, else from $AA
+    wait: routine('wait'),
+    'wait-erase': routine('wait-erase', { after: e => raster.rows(5, 11, (e.mem[V.layout] & 0x0f) === 1 ? 0xb2 : 0xaa, 1) }),
+    'wait-or-escape': routine('wait-or-escape'),
 
-    // $641B, the ask for a key, above
+    // $641B, the ask for a key, above, and $6415, the same, whose choices the problem draws as they are made
     ask: asking('ask'),
-    // $6415: the same, and the problem draws the choice as it is made, which is left to the view
     'ask-mode': asking('ask-mode'),
     'ask-escape': asking('ask-escape'),
 
-    // $60C2: the seed times 259, divided by 65535 over n. The seed is at $6131 and $6130 says it is
-    // in use; a pilot sets it at the first call, as it does on the original.
-    random: (e, args) => {
-      const { fixed } = inputs(e, 'random', args);
-      e.emit(describe('random', fixed, e));
-      const n = e.a;
-      const { at, used } = title.map.seed;
-      if (e.mem[used] === 0xff && title.seed !== undefined) { e.mem[at] = title.seed & 0xff; e.mem[at + 1] = title.seed >> 8; }
-      let seed = e.mem[at] | e.mem[at + 1] << 8;
-      seed = (seed * 259) & 0xffff;
-      e.mem[at] = seed & 0xff; e.mem[at + 1] = seed >> 8; e.mem[used] = n;
-      const q = n ? Math.floor(0xffff / n) : 0xffff;
-      // (the number given by PLA, which sets N and Z from it, and the carry clear: $612B, $5681)
-      e.a = e.flags(Math.floor(seed / q) & 0xff); e.c = 0;
-      e.emit(result('random', e));
-    },
+    // $60C2: a random number below A. Its seed is at $6131 and $6130 says whether it is in use; a pilot sets it at
+    // the first call, as it does on the original.
+    random: routine('random', {
+      draw: () => {
+        const { at, used } = title.map.seed, m = kit.mem;
+        if (m[used] === 0xff && title.seed !== undefined) { m[at] = title.seed & 0xff; m[at + 1] = title.seed >> 8; }
+      },
+    }),
+    multiply: routine('multiply'),
+    divide: routine('divide'),
 
-    multiply: (e, args) => { inputs(e, 'multiply', args); e.emit(describe('multiply', [], e)); const p = e.a * e.x; e.a = p & 0xff; e.x = p >> 8; e.emit(result('multiply', e)); },
-    divide: (e, args) => { inputs(e, 'divide', args); e.emit(describe('divide', [], e)); const d = e.x | e.y << 8, n = e.a || 1; e.a = Math.floor(d / n) & 0xff; e.x = d % n; e.emit(result('divide', e)); },
-
-    // A problem, loaded and called as the original's loader does it ($4DC3 in Nature Park, $57CA in Animal Rescue):
-    // the carry says whether it is practice, the file goes where the loader puts it, and the problem runs from the
-    // file's start. Nature Park's loader takes the number of times from X for a problem from the Problems menu, in
-    // place of the teacher's, and puts the teacher's back after. The carry comes back clear. The problem is the
-    // title's script probN, lifted from its file, called there; it returns here.
-    problem: (e, args) => {
-      inputs(e, 'problem', args); e.emit(describe('problem', [], e)); e.mem[V.practice] = e.c ? 0x80 : 0;
-      const repeats = e.mem[V.repeats];
-      if (title.map.countInX && e.c) e.mem[V.repeats] = e.x;
-      const file = codeFile('PROB' + e.a), lifted = 'prob' + e.a;
-      if (!file || e.sources[lifted] === undefined) throw new Error('problem ' + e.a + ' is not lifted yet');
-      e.mem.set(file.bytes, file.origin);
-      e.stack.push({ name: e.name, pc: e.pc, after: e => { e.c = 0; if (title.map.countInX) e.mem[V.repeats] = repeats; e.emit(result('problem', e)); } });
+    // A problem, as the original's loader loads and calls it ($4DC3 in Nature Park, $57CA in Animal Rescue), on the
+    // machine until it calls the problem's file at its start; the problem is the title's script probN, lifted from
+    // its file, which runs from there, and as it returns the loader goes on, back to the scene.
+    problem: (e, args, step) => {
+      inputs(e, 'problem', args); e.emit(describe('problem', [], e));
+      const n = e.a, file = codeFile('PROB' + n), lifted = 'prob' + n;
+      if (!file || e.sources[lifted] === undefined) throw new Error('problem ' + n + ' is not lifted yet');
+      const r = kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), stop: file.origin });
+      if (r !== 'lifted') throw new Error('the loader did not call problem ' + n);
+      e.stack.push({ name: e.name, pc: e.pc, after: e => { kit.resume(e); e.emit(result('problem', e)); } });
       e.enter(lifted, label16(file.origin));
     },
 
-    // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape
-    // With no key, inside a routine of a problem's own that is busy (`e.busy`, as its demonstration animates by the
-    // polls), it gives none, A, X and Y 0, and the routine goes on, as on the original; anywhere else it waits for one.
+    // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape. With no key it
+    // waits for one, unless a routine of a problem's own that is busy (`e.busy`, as its demonstration animates by the
+    // polls) is running it, which goes on with none, as on the original. A step only when it gives a key.
     'read-key': (e, args, step) => {
       if (e.waitingOn !== step) { e.waitingOn = step; e.asked = null; }
-      const k = e.key();
-      if (k === undefined && e.busy && e.inside) { e.waitingOn = null; e.a = e.flags(0); e.x = 0; e.y = 0; e.c = 0; return; }
-      if (k === undefined) return 'wait';
-      if (title.visit?.[k]) { e.visit(k); return 'wait'; }
+      if (keyFor(e, step) === undefined && !(e.busy && e.inside)) return 'wait';
       e.waitingOn = null;
-      if (k === KEY.menu && title.menu) e.leave(...title.menu);
-      e.a = e.flags(k & 0x7f); e.c = k === KEY.escape ? 1 : 0;
-      e.emit(result('read-key', e));
-    },
-
-    // PART0's line stepping, which its line routine uses ($6F35 in Nature Park) and a problem may call itself, as the
-    // clock does: sums on the zero page, no steps. From the point at 0 and 2 to the one at 1 and 3 ($6F43), the
-    // longer side's length at 4 and the shorter's at 5, an error and the two sums that step it at 6 to 11 (twice the
-    // shorter side, less the longer, and less it again), X and Y the first point, and at 4 the number of points. The
-    // original writes the steps it will take into its own code; the Remake keeps them with the engine.
-    '.line-start': e => {
-      const m = e.mem, side = (a, b) => { const d = (m[Z(b)] - m[Z(a)]) & 0xff; return m[Z(b)] >= m[Z(a)] ? [d, 1] : [(-d) & 0xff, -1]; };
-      const [dx, sx] = side(0, 1), [dy, sy] = side(2, 3), across = dx >= dy;
-      const long = across ? dx : dy, short = across ? dy : dx;
-      e.lineSteps = { one: across ? [sx, 0] : [0, sy], both: [sx, sy] };
-      const word = (at, v) => { m[Z(at)] = v & 0xff; m[Z(at + 1)] = v >> 8 & 0xff; };
-      word(8, short * 2); word(6, short * 2 - long); word(10, short * 2 - 2 * long);
-      m[Z(5)] = short; m[Z(4)] = (long + 1) & 0xff;
-      e.x = m[Z(0)]; e.y = m[Z(2)]; e.flags(m[Z(4)]);
-    },
-    // A point on along the line ($6FB7): with the error not negative, a step on both sides and the error stepped by
-    // the sum at 10; else a step on the longer side only, by the sum at 8. Then the count at 4 down, zero at the end.
-    '.line-step': e => {
-      const m = e.mem, ok = !(m[Z(7)] & 0x80), [ax, ay] = ok ? e.lineSteps.both : e.lineSteps.one, by = ok ? 10 : 8;
-      e.x = (e.x + ax) & 0xff; e.y = (e.y + ay) & 0xff;
-      const lo = m[Z(6)] + m[Z(by)], hi = m[Z(7)] + m[Z(by + 1)] + (lo >> 8);
-      e.v = ~(m[Z(7)] ^ m[Z(by + 1)]) & (m[Z(7)] ^ hi) & 0x80 ? 1 : 0; e.c = hi >> 8 & 1;
-      m[Z(6)] = lo & 0xff; m[Z(7)] = hi & 0xff;
-      m[Z(4)] = (m[Z(4)] - 1) & 0xff; e.flags(m[Z(4)]);
+      kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
+      if (e.a) e.emit(result('read-key', e));
     },
 
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
-    // ($1382, through PART0's key poll $5283): A the key down then, the carry set for escape, and X and Y 0. With no
-    // key it gives 0; only a joystick, which the Remake has none of, gives it anything else. The page gives a key or
-    // none as time passes, and the pilots one at a time, -1 for none.
+    // ($1382): the key down then, or none, which the page gives as time passes and the pilots one at a time, -1 for
+    // none; and then the turn's own code, on the machine.
     tick: (e, args, step) => {
       if (e.waitingOn !== step) { e.waitingOn = step; e.emit(describe('tick', [], e)); }
-      const k = e.key();
-      if (k === undefined) return 'wait';
-      if (title.visit?.[k]) { e.visit(k); return 'wait'; }
+      if (keyFor(e, step) === undefined) return 'wait';
       e.waitingOn = null;
-      if (k === KEY.menu && title.menu) e.leave(...title.menu);
-      e.a = e.flags(k >= 0 ? k & 0x7f : 0); e.c = k === KEY.escape ? 1 : 0; e.x = 0; e.y = 0;
+      kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step) });
       e.emit(result('tick', e));
     },
 
-    // The loader's splash, before PART0 runs: TITLE, a double hi-res picture, until a key. The
-    // original's engine is not in yet, so it is no step; the view draws it.
+    // The loader's splash, before PART0 runs: TITLE, a double hi-res picture, until a key, which the view draws and
+    // is no step; then the loader on, on the machine, to where the script's next line is.
     splash: (e, args, step) => {
       if (e.waitingOn !== step) { e.inside++; e.emit({ step: 'splash' }); e.inside--; e.waitingOn = step; }
-      if (e.key() === undefined) return 'wait';
+      if (keyFor(e, step) === undefined) return 'wait';
       e.waitingOn = null;
+      kit.span(e, nextAt(e, step));
     },
     // Nature Park's $4C00: both halves of the graphics screen cleared to black, which is no step
-    'clear-screen': e => {
-      for (const row of raster.dots) row.fill(0);
-      e.inside++; e.emit({ step: 'clear-screen' }); e.inside--;
-    },
-
-    // A delay the original made by counting X and Y down, given as the milliseconds it took: no
-    // step, and nothing changes but the registers, both 0 when the count is done. The page waits.
-    pause: (e, [ms]) => { e.x = 0; e.y = 0; e.flags(0); e.inside++; e.emit({ step: 'pause', ms: +ms }); e.inside--; },
+    'clear-screen': span('clear-screen', () => { for (const row of raster.dots) row.fill(0); }),
+    // A delay the original counts out with X and Y, on the machine: no step.
+    pause: span(),
 
     // End, on the Main Menu: ProDOS's quit, through $0200, and the title is over
-    quit: e => { e.ended = true; },
+    quit: span(),
 
     // a part of the title not written yet: the run stops here and says which
     unwritten: (e, [what]) => { throw new Error('not written yet: ' + (what?.string ?? what)); },
 
-    // a jump or a call into PART0's own code, which the title's scripts have: the title's
-    // `entries` say where each address is
+    // A jump or a call into code outside the script: the title's own code, which its scripts have where its
+    // `entries` say; a call to any other, the toolkit's or the loader's, runs that code on the machine, as no step.
     'goto-engine': (e, [at]) => { const to = title.entries?.[at]; if (!to) throw new Error('no script for ' + at); e.enter(...to); },
-    'call-engine': (e, [at]) => { const to = title.entries?.[at]; if (!to) throw new Error('no script for ' + at); e.stack.push({ name: e.name, pc: e.pc }); e.enter(...to); },
-
-    // the loader: part A's script, from its start, after the title has shown it
-    // (and, with the disk out of its drive, it comes back, as the loader's read does with its error)
-    'load-part': (e) => {
-      const volume = Object.keys(title.disk?.volumes ?? {})[0]?.toUpperCase();
-      if (title.files?.out?.has(volume)) { e.a = e.flags(0x45); e.c = 1; return; }
-      const file = codeFile('PART' + e.a);
-      if (file) e.mem.set(file.bytes, file.origin);
-      e.stack = []; e.enter('part' + e.a, undefined, true);
+    'call-engine': (e, [at], step) => {
+      const to = title.entries?.[at];
+      if (to) { e.stack.push({ name: e.name, pc: e.pc }); e.enter(...to); return; }
+      const r = kit.call(e, step, { to: parseInt(at.slice(1), 16), back: (step.at + 3) & 0xffff });
+      if (r === 'quit') e.ended = true;
+      if (r === 'wait') { e.waitingOn = step; return 'wait'; }
     },
 
-    // Nature Park's settings written to its own disk through the loader ($08E9): ProDOS's
-    // SET_FILE_INFO, answered from the disks as @moonbase-machines/apple2e/mli.js answers the original's call: the
-    // write-protect error ($2B) with the tab on, no volume ($45) with the disk out of its drive,
-    // and the carry set for either; clear when it goes through
-    'write-settings': e => {
-      const files = title.files ??= new Files(title.disk), volume = Object.keys(title.disk.volumes)[0].toUpperCase();
-      const err = files.out?.has(volume) ? 0x45 : files.disks[volume] === 'protected' ? 0x2b : 0;
-      e.a = e.flags(err); e.c = err ? 1 : 0;
+    // The jump into a part the loader has read, on the machine, to the part's start, where its script starts: the
+    // part whose file's first bytes are in memory there.
+    'load-part': (e, args, step) => {
+      const parts = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => codeFile('PART' + n)).filter(Boolean);
+      const r = kit.span(e, nextAt(e, step), { at: step.at, stops: [...new Set(parts.map(f => f.origin))] });
+      const file = parts.find(f => f.origin === r && f.bytes.subarray(0, 16).every((b, i) => e.mem[f.origin + i] === b));
+      if (!file) throw new Error('the loader did not start a part');
+      e.stack = []; e.enter(file.name.toLowerCase(), undefined, true);
     },
+
+    // Nature Park's settings written to its own disk through the loader ($08E9), on the machine, whose ProDOS
+    // answers as the disk is: the write-protect error ($2B) with the tab on, no volume ($45) with the disk out of its
+    // drive, and the carry set for either
+    'write-settings': span(),
   };
   // A problem's own routine (the map's `problems`): its step, as the original's transcript has it as the routine
-  // starts, and the title's painter for it (paint.js), which paints it into the model of the original's screen and
-  // does what it does to memory. A routine whose own code is lifted with the problem (probN, its address one of the
-  // lift's entries) then runs that code inside the step, as a routine that reads keys does, and gives its result as
-  // it returns; one only drawn has its address in the script as its own step and a return, or not at all. A routine
-  // that polls for a key is a step only when it gives one (events.js `POLLS`), and one whose name starts with a dot
-  // is no step at all, as the original's transcript hides it.
-  for (const [n, own] of Object.entries(title.map.problems ?? {})) for (const [at, name] of Object.entries(own)) {
+  // starts, the title's painter for it (paint.js), which paints it into the model of the original's screen, and the
+  // routine on the machine. A routine whose own code is lifted with the problem (probN, its address one of the
+  // lift's entries) runs that code inside the step instead, as a routine that reads keys does, and gives its result
+  // as it returns; one only drawn has its address in the script as its own step and a return, or not at all. A
+  // routine that polls for a key is a step only when it gives one (events.js `POLLS`), and one whose name starts
+  // with a dot is no step at all, as the original's transcript hides it.
+  for (const [n, owned] of Object.entries(title.map.problems ?? {})) for (const [at, name] of Object.entries(owned)) {
     if (routines[name]) continue;
     const quiet = name.startsWith('.'), polls = POLLS.has(name), gives = e => !quiet && GIVES[name] && (!polls || e.a && (name !== 'blink-key' || e.c));
     const script = 'prob' + n, label = label16(+at);
     const lifted = e => { if (e.sources[script] === undefined) return false; const p = e.script(script), k = p.labels[label]; return k !== undefined && p.steps[k].words[0] !== name; };
-    routines[name] = (e, args) => {
+    const drawn = routine(name, { draw: e => title.paint?.[name]?.(title.model, e) });
+    routines[name] = (e, args, step) => {
+      if (!lifted(e)) return drawn(e, args, step);
       inputs(e, name, args);
       if (!polls && !quiet) e.emit(describe(name, [], e, undefined, z => e.mem[Z(z)], a => e.mem[a]));
       title.paint?.[name]?.(title.model, e);
-      if (!lifted(e)) return;
       // The routine that runs its code from a scene's step is busy until it draws the space bar's button, unless it
       // waits for keys or polls for one itself, as the original's observer has it (events.js `WAITS`, `POLLS`).
       if (!e.inside) e.busy = !WAITS.has(name) && !polls ? name : null;
       e.callInside(script, label, e => { if (!e.inside) e.busy = null; if (gives(e)) e.emit(result(name, e)); });
     };
   }
-  // The game's code in memory where its loader puts it, as the scenes read bytes of it: PART0 from the start, as the
-  // panels' rows are read from it, and each part and problem as it is loaded.
-  routines.setup = e => { const file = codeFile('PART0'); if (file) e.mem.set(file.bytes, file.origin); };
+  // and any routine of the map's the Remake has nothing of its own for, as the line stepping, which is no step
+  for (const name of new Set(Object.values(title.map.routines))) { const [n] = name.split(' '); routines[n] ??= routine(n); }
+
+  // The machine, booted to where the scenes start (or to the loader's key, before PART0), whose memory is the
+  // engine's; the engine's own reads and writes of the I/O page go to it, on the engine's clock, and its lines are
+  // timed by their instructions, as the original's are (Engine.time). Its disk is the one a route takes out and puts
+  // back.
+  routines.setup = e => {
+    kit = e.kit = new Toolkit(title.disk, title.entries);
+    e.mem = kit.mem;
+    title.files = kit.m.disk;
+    kit.boot(e, e.script(title.start).steps[0]?.at ?? 0x4000);
+    e.io = (at, v) => {
+      const m = kit.m; m.cpu.cycles = e.cycles;
+      const r = m.io(at, v);
+      for (const k of m.clicks) e.clicks.push(k);
+      m.clicks.length = 0;
+      return r;
+    };
+  };
+  routines.timed = true;
+  routines.inline = inline;
   return routines;
 }
