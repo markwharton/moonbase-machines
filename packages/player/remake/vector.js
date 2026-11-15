@@ -7,7 +7,8 @@
 import { describe, result, TAKES, nothing } from './events.js';
 import { helpers } from './problems.js';
 import { tables, carry } from '@moonbase-machines/vector/objects.js';
-import { pictures } from '@moonbase-machines/vector/pictures.js';
+import { pictures, shapes } from '@moonbase-machines/vector/pictures.js';
+import { inside } from '@moonbase-machines/vector/draw.js';
 import { width, useFont } from '@moonbase-machines/vector/font.js';
 import { Raster } from './raster.js';
 import { label16 } from './engine.js';
@@ -257,6 +258,9 @@ export function vectorRoutines(title) {
     flash: simple('flash'),
     // $5B4C: the color of a dot of the original's screen, from the screen model
     'read-dot': (e, args) => { inputs(e, 'read-dot', args); e.emit(describe('read-dot', [], e)); e.a = e.flags(raster.get(e.x, e.y)); e.emit(result('read-dot', e)); },
+    // the point test ($7144 in Nature Park): whether the dot at X and Y is inside the shape whose bytes start at the
+    // address kept at $60, in A as the engine gives it (draw.js `inside`)
+    inside: (e, args) => { inputs(e, 'inside', args); e.emit(describe('inside', [], e)); e.a = e.flags(inside(shapes(a => e.mem[a], e.mem[0x60] | e.mem[0x61] << 8)[0], e.x, e.y)); e.emit(result('inside', e)); },
     'key-panel': simple('key-panel', e => keyPanel(e.a)), 'keep-span': simple('keep-span'), 'put-span': simple('put-span'), 'invert-span': simple('invert-span'),
     button: simple('button'),
     // a beep of 0 does nothing, and is no step (events.js)

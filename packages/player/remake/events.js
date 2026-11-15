@@ -7,7 +7,7 @@ export const TAKES = {
   box: 'axy', object: 'axy', 'object-keep': 'axy', 'object-mode': 'axy', objects: 'xy', span: 'axy', random: 'a', beep: 'a',
   'key-at': 'axy', key: 'a', multiply: 'ax', divide: 'axy', ask: 'a', 'ask-mode': 'a', 'ask-escape': 'a', rectangle: 'axy', 'read-dot': 'xy',
   problem: 'a', dot: 'axy', 'fill-rows': 'axy', part: 'a', 'rectangle-outline': 'axy', 'key-panel': 'a', 'keep-span': 'xy',
-  'put-span': 'xy', 'white-lines': 'y', 'invert-span': 'xy',
+  'put-span': 'xy', 'white-lines': 'y', 'invert-span': 'xy', inside: 'xy',
   // Animal Rescue's problems: PROB1, the chimps' tree, a box by its letter
   label: 'a', 'flip-box': 'a', 'flash-box': 'a',
   // PROB2, the elephants: a mark on the path by its place, and a jump by how far it goes
@@ -60,7 +60,7 @@ export function describe(name, fixed, regs, inline, read, peek) {
 }
 
 // the outputs of a routine that a scene goes on to use, recorded as it returns
-export const GIVES = { random: 'a', ask: 'ax', 'ask-mode': 'ax', 'ask-escape': 'axc', 'wait-or-escape': 'c', problem: 'c', 'read-key': 'a', 'read-dot': 'a', multiply: 'ax', divide: 'ax', 'blink-key': 'a', 'which-box': 'xy', tick: 'a', 'choose-action': 'a', take: 'a', drop: 'a', 'show-bag': 'a', 'bag-choose': 'a', getin: 'a', acptr: 'a', readst: 'a', load: 'cxy', chrin: 'a' };
+export const GIVES = { random: 'a', ask: 'ax', 'ask-mode': 'ax', 'ask-escape': 'axc', 'wait-or-escape': 'c', problem: 'c', 'read-key': 'a', 'read-dot': 'a', inside: 'a', multiply: 'ax', divide: 'ax', 'blink-key': 'a', 'which-box': 'xy', tick: 'a', 'choose-action': 'a', take: 'a', drop: 'a', 'show-bag': 'a', 'bag-choose': 'a', getin: 'a', acptr: 'a', readst: 'a', load: 'cxy', chrin: 'a' };
 
 // A call that does nothing is no step: the beep returns at once for A 0 ($6831 in Animal Rescue,
 // $5D12 in Nature Park), and a scene that reads keys by polling beeps each one, 0 for none, until
