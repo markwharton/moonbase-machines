@@ -154,6 +154,16 @@ export function vectorRoutines(title) {
       for (const c of line.chars) raster.glyph(c.ch, c.x, line.top, c.ink ?? line.ink, line.paper, line.tall ? 2 : 1, line.height, pen.spacing);
     }
   };
+  // $5F4B ($549C in Nature Park): rows of the screen from Y filled in colour A, X of them, white at the ends with the
+  // carry set, stopping at the screen's bottom. It leaves at 2 in the zero page and in A the row after the last it
+  // filled, at 15 the rows it did not reach, at 0 $00 for edges or $FF, at 5 the colour times four and at 6 1; X the
+  // colour's place in its table and 2, Y 40, and the carry set only if it stopped at row 192 ($5FA0).
+  const fillRows = (e, c, count, first, edges) => {
+    let y = first, n = count, bottom;
+    for (;;) { raster.rows(c, 1, y, edges); y = (y + 1) & 0xff; if ((bottom = y >= 0xc0)) break; n = (n - 1) & 0xff; if (!n) break; }
+    const m = e.mem; m[Z(2)] = y; m[Z(0x0f)] = n; m[Z(0)] = edges ? 0 : 0xff; m[Z(5)] = c << 2 & 0xff; m[Z(6)] = 1;
+    e.x = (c << 2) + 2 & 0xff; e.y = 40; e.a = y; e.compare(y, 0xc0); e.c = bottom ? 1 : 0;
+  };
   // object n of the table set last, put as `how` ('whole', 'keep' or 'clear')
   const put = (e, n, x, y, how) => { const o = objectOf(e, n); if (o) raster.object(o, x, y, how); };
   // what a title's painters (titles/<title>/paint.js) paint the model with
@@ -258,7 +268,7 @@ export function vectorRoutines(title) {
     'key-at': simple('key-at', e => { pen.x = e.x; pen.y = e.y; cap(String.fromCharCode(e.a & 0x7f)); }),
     key: simple('key', e => cap(String.fromCharCode(e.a & 0x7f))),
     'white-lines': simple('white-lines', e => raster.whiteLines(e.y)),
-    'fill-rows': simple('fill-rows', e => raster.rows(e.a, e.x, e.y, e.c)),
+    'fill-rows': simple('fill-rows', e => fillRows(e, e.a, e.x, e.y, e.c)),
     span: simple('span', e => raster.span(e.a, e.x, e.y, e.mem[Z(0x02)])),
     // a dot, which returns with A its place in its group of seven times 16, and its color ($5B45)
     dot: simple('dot', e => { raster.set(e.x, e.y, e.a); e.a = (e.x % 7) << 4 | e.a & 15; }),
