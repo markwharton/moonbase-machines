@@ -68,6 +68,24 @@ test('a routine that waits for a key stops at its first poll with none, and goes
   assert.ok(!kit.waits(step));
 });
 
+test('the machine counts the polls with no key across the calls of a run', () => {
+  // LDX #200  LDA $C000  DEX  BNE (to the LDA)  RTS: 200 polls, as a routine that polls for a key
+  // INC $10  LDA $C000  BPL (to the INC): a wait, which counts its own polls in $10
+  const { kit, e, step } = booted({ 0x5000: [0xa2, 200, 0xad, 0x00, 0xc0, 0xca, 0xd0, 0xfa, 0x60], 0x5100: [0xe6, 0x10, 0xad, 0x00, 0xc0, 0x10, 0xf9] });
+  const before = kit.mem[0x10];
+  kit.call(e, step, { to: 0x5000, back: 0x0303, waits: false, polls: true });
+  assert.equal(kit.m.idle, 200);
+  assert.equal(kit.call(e, step, { to: 0x5100, back: 0x0303 }), 'wait');
+  assert.equal((kit.mem[0x10] - before) & 0xff, (2001 - 200) & 0xff, 'the wait makes 1801 polls of its own');
+});
+
+test('a busy routine\'s polls are no wait, and the count starts again when it passes a wait\'s', () => {
+  // LDY #10  LDX #250  LDA $C000  DEX  BNE (to the LDA)  DEY  BNE (to the LDX)  RTS: 2500 polls
+  const { kit, e, step } = booted({ 0x5000: [0xa0, 10, 0xa2, 250, 0xad, 0x00, 0xc0, 0xca, 0xd0, 0xfa, 0x88, 0xd0, 0xf5, 0x60] });
+  assert.equal(kit.call(e, step, { to: 0x5000, back: 0x0303, waits: false }), undefined);
+  assert.equal(kit.m.idle, 2500 - 2001);
+});
+
 test('a JSR into the scenes\' own code runs it there, inside the routine, and the routine goes on as it returns', () => {
   // JSR $6000  ADC #4  RTS, with $6000 an entry of the title's
   const { kit, e, step } = booted({ 0x5000: [0x20, 0x00, 0x60, 0x69, 0x04, 0x60] }, { $6000: ['prob2', 'L6000'] });

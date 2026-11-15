@@ -320,19 +320,18 @@ export function vectorRoutines(title) {
     },
 
     // $5D66 and $5DA9: a key, as the title's own loops read it; A the key, the carry set for escape, or 0 with none,
-    // as it polls once. The polls of a scene's own loop that finds none are counted, as the original's machine counts
-    // them; as many as are a wait (`IDLE`) stop the run there (Engine.run's `polled`), its time to the first, and the
-    // loop goes on with the key. The polls of a routine of a problem's own that is busy (`e.busy`, as its
-    // demonstration animates by them) are no wait. A step only when it gives a key.
+    // as it polls once. The machine counts the polls of a scene's own loop that finds none (`e.idle`); as many as are
+    // a wait (`IDLE`) stop the run there (Engine.run's `polled`), its time to the first, and the loop goes on with the
+    // key. The polls of a routine of a problem's own that is busy (`e.busy`, as its demonstration animates by them)
+    // are no wait. A step only when it gives a key.
     'read-key': (e, args, step) => {
       keyFor(e, step);
       const busy = e.busy && e.inside;
-      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits: false }) === 'menu') return menu(e);
-      if (e.a) { e.idle = 0; e.waitingOn = null; e.emit(result('read-key', e)); return; }
+      if (kit.call(e, step, { to: routineAt(e, step), back: backOf(e, step), waits: false, polls: !busy }) === 'menu') return menu(e);
+      if (e.a) { e.waitFrom = null; e.waitingOn = null; e.emit(result('read-key', e)); return; }
       if (busy) return;
-      if (!e.idle) e.waitFrom = kit.first;
-      e.idle += kit.m.idle;
-      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / 1020.484; e.cycles = e.waitFrom; e.polled = true; e.waitingOn = step; e.asked = null; }
+      e.waitFrom ??= kit.first;
+      if (e.idle > IDLE) { e.delay -= (e.cycles - e.waitFrom) / 1020.484; e.cycles = e.waitFrom; e.waitFrom = null; e.polled = true; e.waitingOn = step; e.asked = null; }
     },
 
     // A turn of a game's own loop that reads the keyboard without waiting for a key, as Nature Park's truck does
@@ -420,11 +419,12 @@ export function vectorRoutines(title) {
 
   // The machine, booted to where the scenes start (or to the loader's key, before PART0), whose memory is the
   // engine's; the engine's own reads and writes of the I/O page go to it, on the engine's clock, and its lines are
-  // timed by their instructions, as the original's are (Engine.time). Its disk is the one a route takes out and puts
-  // back.
+  // timed by their instructions, as the original's are (Engine.time). The engine's count of the polls with no key in
+  // a run is the machine's. Its disk is the one a route takes out and puts back.
   routines.setup = e => {
     kit = e.kit = new Toolkit(title.disk, title.entries, title.menu && title.map.menu);
     e.mem = kit.mem;
+    Object.defineProperty(e, 'idle', { get: () => kit.m.idle, set: v => { kit.m.idle = v; }, configurable: true });
     title.files = kit.m.disk;
     kit.boot(e, e.script(title.start).steps[0]?.at ?? 0x4000);
     e.io = (at, v) => {

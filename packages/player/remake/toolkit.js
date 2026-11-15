@@ -62,7 +62,11 @@ export class Toolkit {
   // time to the first; 'quit' when the game quits, 'menu' at the Main Menu. `first` is the cycle of the first read
   // of the keyboard that found no key, before it was made, and `picked` the cycle after the first that found one,
   // for the pilots, which time a key from there to the next wait.
-  go(e, done, { waits = false } = {}) {
+  // The machine counts the polls with no key from the start of the engine's run (Engine.run sets the count to 0),
+  // across every routine the run calls. A routine that neither waits nor polls for a key is busy: its polls are no
+  // wait, and the count starts again when it passes `IDLE`, as the original's observer starts it again. With `polls`,
+  // the routine polls for a key and the step decides whether the count is a wait.
+  go(e, done, { waits = false, polls = false } = {}) {
     const m = this.m, cpu = m.cpu;
     cpu.cycles = e.cycles; this.jsr = false; this.first = null;
     let r, n = 0;
@@ -79,7 +83,10 @@ export class Toolkit {
       this.jsr = m.read(cpu.pc) === 0x20;
       cpu.step();
       if (reads && !none) this.picked ??= cpu.cycles;
-      if (waits && m.idle > IDLE) { r = 'wait'; break; }
+      if (m.idle > IDLE) {
+        if (waits) { r = 'wait'; break; }
+        if (!polls) m.idle = 0;
+      }
     }
     // (a wait's polls are the player's time: the routine's ends at its first poll that finds no key)
     const at = r === 'wait' ? this.first ?? cpu.cycles : cpu.cycles;
@@ -107,7 +114,7 @@ export class Toolkit {
   // A routine of the toolkit's, called by the JSR at `step`'s address: from `to`, with the engine's registers, as the
   // call left them, and back at `back`, past the data it takes inline. 'wait' while it waits for a key, the 6502 kept
   // until the step runs again with one (`press`); 'quit' when the game quits; else the registers are the engine's.
-  call(e, step, { to, back, stop, waits = true }) {
+  call(e, step, { to, back, stop, waits = true, polls = false }) {
     const m = this.m, cpu = m.cpu, outer = this.regs(), jsr = this.jsr;
     let p = this.paused.get(step);
     if (p) { this.paused.delete(step); this.set(p.regs); }
@@ -117,10 +124,10 @@ export class Toolkit {
       const ret = (step.at + 2) & 0xffff;   // (as the JSR leaves it: its own last byte, before the data)
       m.write(0x100 | cpu.sp, ret >> 8); cpu.sp = (cpu.sp - 1) & 0xff;
       m.write(0x100 | cpu.sp, ret & 0xff); cpu.sp = (cpu.sp - 1) & 0xff;
-      cpu.pc = to; m.idle = 0;
+      cpu.pc = to;
     }
     let stopped = false;
-    const r = this.go(e, () => cpu.pc === p.back && cpu.sp === p.sp || stop !== undefined && cpu.pc === stop && (stopped = true), { waits });
+    const r = this.go(e, () => cpu.pc === p.back && cpu.sp === p.sp || stop !== undefined && cpu.pc === stop && (stopped = true), { waits, polls });
     // (the loader at the start of a problem's own code, which the problem's script runs: kept, to go on from its
     // JSR's return when the script returns, `resume`)
     if (stopped) { this.suspended = { ...p, regs: this.regs(), outer, jsr }; return 'lifted'; }
@@ -161,7 +168,7 @@ export class Toolkit {
   // a part's or a problem's start, reached by the loader.
   span(e, until, { at, stops = [] } = {}) {
     const m = this.m, cpu = m.cpu, outer = this.regs();
-    if (at !== undefined) { Object.assign(cpu, { a: e.a, x: e.x, y: e.y, n: e.n, z: e.z, c: e.c, v: e.v, d: e.d, pc: at }); m.idle = 0; }
+    if (at !== undefined) Object.assign(cpu, { a: e.a, x: e.x, y: e.y, n: e.n, z: e.z, c: e.c, v: e.v, d: e.d, pc: at });
     let stop;
     const r = this.go(e, () => cpu.pc === until || stops.includes(cpu.pc) && (stop = cpu.pc, true));
     e.a = cpu.a; e.x = cpu.x; e.y = cpu.y; e.n = cpu.n; e.z = cpu.z; e.c = cpu.c; e.v = cpu.v; e.d = cpu.d;
