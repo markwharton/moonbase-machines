@@ -21,6 +21,17 @@ test('a table read as addresses is followed as code, unless data begins there', 
   assert.equal(walked([0x0810]), false);
 });
 
+test('a byte of a call\'s data that the code writes is named by its address', () => {
+  const code = [
+    0xa9, 0xbf, 0x8d, 0x09, 0x08,   // $0800 LDA #$BF  STA $0809: the text's second character
+    0x20, 0x00, 0x60, 0xc1, 0xbf, 0x80,   // $0805 JSR $6000, the text "A?" at $0808
+    0xa9, 0x01, 0x9d, 0x16, 0x08,   // $080B LDA #1  STA $0816,X: the sound's fourth byte, or a later one
+    0x20, 0x00, 0x70, 1, 2, 3, 4, 5,   // $0810 JSR $7000, the sound's five bytes at $0813
+    0x60,
+  ];
+  assert.deepEqual(lines(code, { 0x6000: 'text', 0x7000: 'sound' }).filter(l => /text|sound/.test(l)), ['0805  text "A{$0809}"', '0810  sound 1 2 3 $0816 $0817']);
+});
+
 test('a jump out of the file to code that is no routine stays a jump into the engine', () => {
   assert.deepEqual(lines([0x4c, 0x00, 0x60], { 0x500c: 'dot' }), ['0800  goto-engine $6000']);
 });

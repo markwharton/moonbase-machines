@@ -4,8 +4,9 @@ import { OPS, SIZE, operand, hex } from '@moonbase-machines/mos6502/disasm.js';
 import { INLINE as READERS } from '@moonbase-machines/vector/inline.js';
 import { TAKES } from './events.js';
 
-// the data after a call, read from the file, with the text quoted so that it reads as one word
-export const readers = from => Object.fromEntries(Object.entries(from).map(([k, f]) => [k, (b, at) => { const r = f(i => b[i], at); return { length: r.length, words: k === 'text' || k === 'print' || k === 'say' ? JSON.stringify(r.value) : r.value }; }]));
+// the data after a call, read from the file, with the text quoted so that it reads as one word; `mark` names a byte the
+// code writes by its address (@moonbase-machines/vector/inline.js)
+export const readers = from => Object.fromEntries(Object.entries(from).map(([k, f]) => [k, (b, at, mark) => { const r = f(i => b[i], at, mark); return { length: r.length, words: k === 'text' || k === 'print' || k === 'say' ? JSON.stringify(r.value) : r.value }; }]));
 const INLINE = readers(READERS);
 
 // `stops` are addresses where data begins that is not a table of code addresses, the objects'
@@ -64,6 +65,19 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
       if (stop) break;
       pc = next;
     }
+  }
+  // A byte of a call's data that the code writes as it runs, as a digit into a text, is read from memory when the step
+  // runs, so it is named by its address. The places written are every address a store, an increment or a shift
+  // names; a store indexed from an address in the data may write any byte from there to the data's end.
+  const written = new Set(), indexed = [];
+  for (const r of lines.values()) if (/^(STA|STX|STY|INC|DEC|ASL|LSR|ROL|ROR)$/.test(r.op)) { if (r.mode === 'abs') written.add(r.value); if (r.mode === 'abx' || r.mode === 'aby') indexed.push(r.value); }
+  for (const [pc, r] of lines) {
+    if (r.call?.words === undefined) continue;
+    const start = pc + 3;
+    const mark = (i, byte) => { const a = i + origin; if (written.has(a) || indexed.some(b => b >= start && b <= a)) return byte ? '$' + hex(a, 4) : '{$' + hex(a, 4) + '}'; };
+    const words = INLINE[r.call.name]?.(bytes, start - origin, mark)?.words;
+    if (words === undefined || words === r.call.words) continue;
+    r.line = r.line.replace(r.call.words, words); r.call.words = words;
   }
   const out = [];
   let last = null;
