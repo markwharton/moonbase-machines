@@ -34,7 +34,15 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
         if (data) next += data.length;
         for (const k in regs) delete regs[k];
       } else if (op.name === 'JSR') { if (inFile(word)) { targets.add(word); queue.push(word); } for (const k in regs) delete regs[k]; }
-      else if (op.name === 'JMP' && op.mode === 'abs') { if (inFile(word)) { targets.add(word); queue.push(word); } else line += '   ; into PART0' + (routines[word] ? ', ' + routines[word] : ''); stop = true; }
+      // A jump to a routine is a call whose return goes back to this code's caller. It reads no data inline, since the
+      // routine finds its data after the caller's call.
+      else if (op.name === 'JMP' && op.mode === 'abs' && !inFile(word) && routines[word]) {
+        const args = ['A', 'X', 'Y'].map(k => regs[k] === undefined ? '' : k + '=' + regs[k]).filter(Boolean).join(' ');
+        line = routines[word] + '   ; by a jump' + (args ? ', ' + args : '');
+        for (const k in regs) delete regs[k];
+        stop = true;
+      }
+      else if (op.name === 'JMP' && op.mode === 'abs') { if (inFile(word)) { targets.add(word); queue.push(word); } else line += '   ; into PART0'; stop = true; }
       else if (op.name === 'JMP' || op.name === 'RTS' || op.name === 'RTI' || op.name === 'BRK') stop = true;
       else if (op.mode === 'rel') { const t = (pc + 2 + (bytes[at + 1] << 24 >> 24)) & 0xffff; targets.add(t); queue.push(t); }
       // a table of addresses, read low byte then high byte, LDA t,X or t,Y and then LDA t+1 the same
@@ -49,7 +57,9 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
           break;
         }
       }
-      lines.set(pc, { line, end: next, op: op.name, mode: op.mode, value: size === 2 ? bytes[at + 1] : word, call: op.name === 'JSR' && routines[word] ? { name: routines[word], words: INLINE[routines[word]]?.(bytes, pc + 3 - origin)?.words } : null, stop });
+      const tail = op.name === 'JMP' && op.mode === 'abs' && !inFile(word) && !!routines[word];
+      const call = op.name === 'JSR' && routines[word] ? { name: routines[word], words: INLINE[routines[word]]?.(bytes, pc + 3 - origin)?.words } : tail ? { name: routines[word], tail } : null;
+      lines.set(pc, { line, end: next, op: op.name, mode: op.mode, value: size === 2 ? bytes[at + 1] : word, call, stop });
       for (let a = pc + 1; a < next; a++) seen.add(a);
       if (stop) break;
       pc = next;
@@ -141,6 +151,8 @@ export function script({ lines, targets, left }, bytes, origin, { stops = new Se
       if (name === 'objects' && given.x !== undefined && given.y !== undefined) args.splice(fixed.length, 2, H(given.x | given.y << 8));
       if (name === 'key-at' || name === 'key') args[0] = given.a !== undefined ? JSON.stringify(String.fromCharCode(given.a & 0x7f)) : args[0];
       put([name, ...args, r.call.words ?? ''].join(' ').trim());
+      // (a jump to the routine: its return is this code's, at the jump's own address)
+      if (r.call.tail) put('return');
       continue;
     }
     switch (r.op) {
