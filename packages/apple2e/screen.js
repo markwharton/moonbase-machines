@@ -6,6 +6,12 @@ export { COLORS };
 
 import { FONT } from '@moonbase-machines/charset/font.js';
 
+// The phosphor colours of the monochrome monitors. A painter given one of these as its `ink` paints the screen as that
+// monitor shows it: each lit dot in the phosphor's colour and each dark dot black. Without `ink`, a painter paints the
+// screen as a colour monitor shows it.
+export const PHOSPHORS = { green: [51, 255, 51], amber: [255, 176, 0], white: [230, 236, 255] };
+const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+
 // the text page: 24 rows of 40 characters, a row's start being 0x400 * 0 + 0x80 * (r % 8) +
 // 0x28 * (r / 8); in 80 columns the auxiliary bank holds the even columns
 export const textRow = r => 0x400 + 0x80 * (r % 8) + 0x28 * ((r / 8) | 0);
@@ -17,10 +23,10 @@ export function textChar(code) {
   return { ch: String.fromCharCode(ch), inverse: !(code & 0x80) };
 }
 
-// the text screen as pixels, 560 by 384, white on black: a character is 7 dots by 8 rows, its
-// glyph 5 by 7 within, drawn two dots wide in 40 columns and one in 80. A code below $80 shows
-// inverse, or flashes; here it is inverse.
-export function paintText(rgba, main, aux, col80, rows = [0, 24]) {
+// The text screen as pixels, 560 by 384. A character is 7 dots by 8 rows, with its glyph 5 by 7 inside, and each dot
+// is two pixels wide in 40 columns and one in 80. A code below $80 shows inverse, or flashes; here it shows inverse.
+// The letters are white on black, or in the phosphor's colour `ink` on black.
+export function paintText(rgba, main, aux, col80, rows = [0, 24], ink = WHITE) {
   const cols = col80 ? 80 : 40, cw = col80 ? 7 : 14;
   for (let r = rows[0]; r < rows[1]; r++) for (let c = 0; c < cols; c++) {
     const a = textRow(r) + (col80 ? c >> 1 : c), code = col80 && !(c & 1) ? aux[a] : main[a];
@@ -28,8 +34,8 @@ export function paintText(rgba, main, aux, col80, rows = [0, 24]) {
     const glyph = FONT[ch.charCodeAt(0) - 0x20] || FONT[0];
     for (let gy = 0; gy < 8; gy++) for (let gx = 0; gx < 7; gx++) {
       const dot = gx >= 1 && gx <= 5 && gy < 7 ? (glyph[gx - 1] >> gy) & 1 : 0, on = dot !== (inverse ? 1 : 0);
-      const v = on ? 255 : 0;
-      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < cw / 7; dx++) { const o = ((r * 16 + gy * 2 + dy) * 560 + c * cw + gx * (cw / 7) + dx) * 4; rgba[o] = v; rgba[o + 1] = v; rgba[o + 2] = v; rgba[o + 3] = 255; }
+      const [cr, cg, cb] = on ? ink : BLACK;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < cw / 7; dx++) { const o = ((r * 16 + gy * 2 + dy) * 560 + c * cw + gx * (cw / 7) + dx) * 4; rgba[o] = cr; rgba[o + 1] = cg; rgba[o + 2] = cb; rgba[o + 3] = 255; }
     }
   }
   return rgba;
@@ -52,9 +58,11 @@ export function colors(aux, main, out = new Uint8Array(140 * 192)) {
 // A single hi-res page as pixels, 560 by 384: 280 dots a row, seven a byte, low bit first, and
 // the byte's high bit picking one of two pairs of colors. A lone dot on an even column is violet
 // or blue, on an odd column green or orange, two side by side are white, and a dark dot between
-// two lit dots takes their color. Each dot is two pixels wide and two high.
+// two lit dots takes their color. Each dot is two pixels wide and two high. With `ink`, the page is painted as a
+// monochrome monitor shows it (monochromeHires).
 const PAIRS = [[[255, 68, 253], [20, 245, 60]], [[20, 207, 253], [255, 106, 60]]];
-export function paintHires(rgba, page) {
+export function paintHires(rgba, page, ink) {
+  if (ink) return monochromeHires(rgba, page, ink);
   const dots = new Uint8Array(280), pal = new Uint8Array(280);
   for (let y = 0; y < 192; y++) {
     const base = rowStart(y);
@@ -70,27 +78,55 @@ export function paintHires(rgba, page) {
   return rgba;
 }
 
+// A single hi-res page as a monochrome monitor shows it, 560 by 384: each lit dot in the phosphor's colour `ink` and
+// each dark dot black, two pixels wide and two high. A byte with its high bit set reaches the screen half a dot late,
+// so its dots are drawn one pixel to the right. During that half dot the signal holds the dot before it, so the last
+// dot of the byte before shows one pixel wider. A byte without the delay starts on time, so the last dot of a delayed
+// byte before it shows one pixel wide. At the left edge the signal holds black, and at the right edge a delayed
+// byte's last dot is cut to one pixel. Jim Sather, "Understanding the Apple IIe" (1985), pages 8-33 and 8-34.
+function monochromeHires(rgba, page, ink) {
+  const line = new Uint8Array(561);
+  for (let y = 0; y < 192; y++) {
+    const base = rowStart(y);
+    let last = 0;   // (the dot the signal holds: the last dot of the byte before, dark at the row's start)
+    for (let xb = 0; xb < 40; xb++) {
+      const b = page[base + xb], late = b >> 7, start = xb * 14 + late;
+      if (late) line[xb * 14] = last;
+      for (let k = 0; k < 7; k++) line[start + 2 * k] = line[start + 2 * k + 1] = (b >> k) & 1;
+      last = (b >> 6) & 1;
+    }
+    for (let x = 0; x < 560; x++) {
+      const [r, g, b] = line[x] ? ink : BLACK;
+      for (let dy = 0; dy < 2; dy++) { const o = ((y * 2 + dy) * 560 + x) * 4; rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255; }
+    }
+  }
+  return rgba;
+}
+
 // RGBA at four wide and two high a color, 560 by 384. With `owner`, who last changed each dot,
 // a pixel is left clear, for the SVG under it to show, when one of its four dots was changed by
-// the picture routine and none by anything since.
-export function paint(cols, rgba, owner) {
+// the picture routine and none by anything since. With `ink`, each of a colour's four dots is lit in the phosphor's
+// colour or dark, as a monochrome monitor shows double hi-res. The SVG under the clear pixels keeps its colours.
+export function paint(cols, rgba, owner, ink) {
   for (let y = 0; y < 192; y++) for (let x = 0; x < 140; x++) {
     const i = y * 140 + x, c = cols[i];
     let clear = false;
     if (owner) { const d = y * 560 + x * 4; let picture = false, other = false; for (let k = 0; k < 4; k++) { const o = owner[d + k]; if (o === 1) picture = true; else if (o === 2) other = true; } clear = picture && !other; }
-    const [r, g, b] = COLORS[c];
-    for (let dy = 0; dy < 2; dy++) { let o = ((y * 2 + dy) * 560 + x * 4) * 4; for (let dx = 0; dx < 4; dx++) { rgba[o++] = r; rgba[o++] = g; rgba[o++] = b; rgba[o++] = clear ? 0 : 255; } }
+    for (let dy = 0; dy < 2; dy++) {
+      let o = ((y * 2 + dy) * 560 + x * 4) * 4;
+      for (let dx = 0; dx < 4; dx++) { const [r, g, b] = ink ? (c >> (3 - dx) & 1 ? ink : BLACK) : COLORS[c]; rgba[o++] = r; rgba[o++] = g; rgba[o++] = b; rgba[o++] = clear ? 0 : 255; }
+    }
   }
   return rgba;
 }
 
 // The machine's screen as it shows now, 560 by 384, by its switches: double hi-res, single
 // hi-res, or text, and the four rows of text under a mixed picture; `cols` to reuse, `owner` as
-// paint's
-export function screen(m, rgba = new Uint8ClampedArray(560 * 384 * 4), { cols, owner = null } = {}) {
+// paint's, and `ink`, a phosphor's colour, to paint every mode as a monochrome monitor shows it
+export function screen(m, rgba = new Uint8ClampedArray(560 * 384 * 4), { cols, owner = null, ink } = {}) {
   const s = m.screen(), text = m.sw.text;
-  if (!text && m.sw.dhires && m.sw.col80) paint(colors(s.aux, s.main, cols), rgba, owner);
-  else if (!text) paintHires(rgba, s.main);
-  if (text || m.sw.mixed) paintText(rgba, m.main, m.aux, m.sw.col80, text ? [0, 24] : [20, 24]);
+  if (!text && m.sw.dhires && m.sw.col80) paint(colors(s.aux, s.main, cols), rgba, owner, ink);
+  else if (!text) paintHires(rgba, s.main, ink);
+  if (text || m.sw.mixed) paintText(rgba, m.main, m.aux, m.sw.col80, text ? [0, 24] : [20, 24], ink);
   return rgba;
 }
