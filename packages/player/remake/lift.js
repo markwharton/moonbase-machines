@@ -47,7 +47,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), inline
       else if (op.mode === 'rel') { const t = (pc + 2 + (bytes[at + 1] << 24 >> 24)) & 0xffff; targets.add(t); queue.push(t); }
       // a table of addresses, read low byte then high byte, LDA t,X or t,Y and then LDA t+1 the same
       // way within a few instructions: every address in it that is in the file is code to follow
-      if ((op.mode === 'abx' || op.mode === 'aby') && op.name === 'LDA' && inFile(word)) {
+      if ((op.mode === 'abx' || op.mode === 'aby') && op.name === 'LDA' && inFile(word) && !stops.has(word)) {
         for (let k = at + 3; k < at + 12 && k + 2 < bytes.length; k++) {
           if (bytes[k] !== bytes[at] || (bytes[k + 1] | bytes[k + 2] << 8) !== word + 1) continue;
           const table = [];
