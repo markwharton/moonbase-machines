@@ -16,5 +16,7 @@ double hi-res screen as a picture (`hires-picture.js`, drawn as the machine draw
 program listed (`applesoft-list.js`), and a shape table's shapes walked as DRAW walks them (`shapes.js`, which the
 ROM's DRAW plots through).
 
+And for a title's map: what the ROM's routines and ProDOS's call take as steps (`steps.js`).
+
 Part of Moonbase (moonbase.au): Mark Wharton's titles of 1985 to 1995, running again in the browser
 on these machines. MIT; see LICENSE. Each file opens with what it is and what it covers.

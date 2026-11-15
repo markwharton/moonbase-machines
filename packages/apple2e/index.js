@@ -16,3 +16,4 @@ export * as rom from './rom.js';
 export * as saves from './saves.js';
 export * as screen from './screen.js';
 export * as shapes from './shapes.js';
+export * as steps from './steps.js';
