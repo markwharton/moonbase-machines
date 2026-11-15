@@ -216,7 +216,8 @@ export class Engine {
     if (step.start !== undefined || prev && prev.at !== null) {
       // from its label, where a jump comes in, or where the line before ended
       const from = step.start ?? prev.at + size(m[prev.at]) + (COMPARED(prev) ? 2 : 0) + (this.routines.inline?.(this, prev) ?? 0);
-      if (from < step.at && step.at - from <= 9) {
+      // (however many there are: a register loaded twice before a call runs both loads)
+      if (from < step.at) {
         let more = 0, a = from;
         for (; a < step.at && LEFT_OUT.has(m[a]); a += size(m[a])) more += CYCLES[m[a]];
         if (a === step.at) c += more;   // only these, or the bytes between are no code (a variable)
