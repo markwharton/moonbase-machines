@@ -11,6 +11,7 @@ import { makeEngine } from '../remake/load.js';
 // The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
 import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
+import { CPU } from '@moonbase-machines/mos6502/cpu.js';
 import { SID } from '@moonbase-machines/c64/sid.js';
 import { matrixOf } from '@moonbase-machines/c64/kernal.js';
 import { standIn } from '@moonbase-machines/c64/rom.js';
@@ -85,7 +86,11 @@ export async function play(g) {
   // did, and the clicks are played as the emulator plays them (audio.js); a vector title's tones play where its own
   // sound flag is on, the teacher's setting in the game, as on the original. The player's Sound setting (play.js) is
   // the speaker, on or off, for both.
-  const speaker = engine.timed ? new Speaker() : null;
+  // A vector title's sounds are played by the game's own sound routine (its title.js map's routine named 'sound'),
+  // from its PART0, which the original loads at $4000.
+  const soundAt = Object.entries(title.map?.routines ?? {}).find(([, name]) => name === 'sound')?.[0];
+  const part0 = drawn === 'vector' && soundAt !== undefined ? Uint8Array.from(atob(Object.values(disk.volumes)[0].PART0.data), c => c.charCodeAt(0)) : null;
+  const speaker = engine.timed || part0 ? new Speaker() : null;
   let sounding = true;
   const hear = () => { if (!c64) speaker?.feed(sounding ? engine.clicks : [], engine.cycles); engine.clicks.length = 0; };
   const V = title.map?.vars ?? { sound: 0, soundOn: 0 };
@@ -99,9 +104,26 @@ export async function play(g) {
     o.connect(gain).connect(audio.destination); o.start(t); o.stop(t + ms / 1000);
   };
   const pitch = p => 16000 / (p + 8);
+  // A sound step, run as the original runs it: the sound routine on a 6502, in a copy of the game's memory with PART0
+  // at $4000, called by a JSR with the step's five bytes after it, as the scene's code calls it. Each access to the
+  // speaker ($C030 to $C03F) is a click at its cycle, and the routine's cycles are the sound's length. Returns them.
+  let played = 0;   // (the cycles of the sounds played so far: the speaker's clock)
+  const playSound = words => {
+    const mem = engine.mem.slice(), at = Number(soundAt), CALL = 0x0300, BACK = CALL + 8, clicks = [];
+    mem.set(part0, 0x4000);
+    mem.set([0x20, at & 0xff, at >> 8, ...words.split(' ').map(h => parseInt(h, 16))], CALL);
+    let cycles = 0;
+    const click = a => { if ((a & 0xfff0) === 0xc030) { clicks.push(played + cycles); return true; } return false; };
+    const cpu = new CPU({ read: a => (click(a), mem[a]), write: (a, v) => { if (!click(a)) mem[a] = v; } });
+    cpu.pc = CALL;
+    while (cpu.pc !== BACK && cycles < 10_000_000) cycles += cpu.step();
+    played += cycles;
+    if (sounding) speaker?.feed(clicks, played);
+    return cycles;
+  };
 
   // how long each step takes to be seen or heard, in milliseconds
-  const PACE = { sound: 220, beep: 60, 'flash-box': 60, flash: 250, object: 30, 'object-keep': 30 };
+  const PACE = { beep: 60, 'flash-box': 60, flash: 250, object: 30, 'object-keep': 30 };
   let drawing = false, quick = false;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function runs() {
@@ -124,7 +146,7 @@ export async function play(g) {
           history.push(e);
           view.apply(e);
           if (quick) continue;   // (at full speed: no sound, no wait)
-          if (e.step === 'sound') { const [end, start] = e.words.split(' ').map(h => parseInt(h, 16)); tone(pitch(start), pitch(end), 180); }
+          if (e.step === 'sound' && part0) { const cycles = playSound(e.words); if (g.pace()) await sleep(cycles / 1020.484 * g.pace()); continue; }
           if (e.step === 'beep') tone(pitch(e.a & 31) * 2, pitch(e.a & 31) * 2, 50);
           if (!g.pace()) continue;   // (none of the original's waits: its sounds still)
           if (PACE[e.step]) await sleep(PACE[e.step] * g.pace());
