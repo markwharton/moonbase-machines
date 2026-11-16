@@ -33,7 +33,9 @@ const root = resolve(folder) + sep, packages = resolve('node_modules/@moonbase-m
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json', '.css': 'text/css',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.wav': 'audio/wav' };
-const PACKAGES = ['mos6502', 'charset', 'c64', 'apple2e', 'vector', 'player'];
+// (the packages installed beside the player, each in the page's import map: the machines, the player, and the
+// toolkits a title brings)
+const PACKAGES = existsSync(packages) ? readdirSync(packages) : [];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 // the page: the title's name, its ways, the player
