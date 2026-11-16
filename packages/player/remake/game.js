@@ -13,6 +13,7 @@
 //   game.on(event => ...)              each event: a step of the transcript, or one of the view's own (`inside`)
 //   game.onKey(key => ...)             each key as it goes to the game; returns a function that stops it
 //   game.mem            the memory the game runs in
+//   game.switches       the machine's soft switches, which say what screen it shows (`text`, `mixed`, `page2`)
 //   game.steps          the title's steps, each by its name with its definition (observer.js `stepsOf`, events.js)
 //   game.waitingOn      the step the game waits in, as { words: [its name] }, with `turn` true for a turn of the
 //                       game's own loop; or null
@@ -30,7 +31,8 @@
 //
 // A game may pace itself by its drawing: a loop that draws two pictures in turn moves at the speed they are drawn. The
 // title's map names such a stretch of the game's code as a step of the view's (its `view`, with `until`), and the title
-// does not warp that step. While it runs nothing warps, so the stretch takes the original's time.
+// does not warp that step. While it runs nothing warps, so the stretch takes the original's time. This holds for a
+// title with a toolkit and for one without (observer.js).
 //
 // A wait for a key is the player's time. A routine that the title's toolkit frees (its game's `frees`, below) runs flat
 // out while it waits for a key, so that what it draws to ask is shown at once and its sound plays out while the player
@@ -48,13 +50,11 @@ const IDLE = 2000;
 // The most cycles a run goes on at warp before it stops for the page to draw.
 const WARP = 4e6;
 
-// What a game with no toolkit gets: it runs in main memory, and its view paints the page the soft switches show. A
-// title's toolkit gives its own (its `game(game)`, observer.js). It gives `mem`, the memory the game runs in, and it
-// may give `enter(event)` and `leave(event)`, called as each step starts and ends; `tap(name, c)`, the observer's
-// `tap`; `frees(event)`, whether a routine runs flat out while it waits for a key; and `splash`, whether the game's
-// loader waits for a key before the toolkit is in memory.
+// What a game with no toolkit gets: it runs in main memory. A title's toolkit gives its own (its `game(game)`,
+// observer.js). It gives `mem`, the memory the game runs in, and it may give `enter(event)` and `leave(event)`, called
+// as each step starts and ends; `tap(name, c)`, the observer's `tap`; `frees(event)`, whether a routine runs flat out
+// while it waits for a key; and `splash`, whether the game's loader waits for a key before the toolkit is in memory.
 function plain(game) {
-  game.title.screen = game.m.sw;
   return { mem: game.m.main };
 }
 
@@ -118,6 +118,7 @@ export class Game {
     });
   }
 
+  get switches() { return this.m.sw; }
   get cycles() { return this.m.cpu.cycles; }
   get clicks() { return this.m.clicks; }
   get idle() { return this.m.idle; }

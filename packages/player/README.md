@@ -6,7 +6,8 @@ The player for Mark Wharton's titles of 1985 to 1995, one way in for every title
   Commodore 64 (`@moonbase-machines/apple2e`, `c64`). It's the Original on the makers' ROMs, where the page gives
   them (`roms`), and the Replica on Moonbase's own ROMs, which need nothing of Apple's or Commodore's.
 - **Remake** (`way: 'remake'`): the game's own code on Moonbase's machine. An Apple title's calls are drawn by the
-  view of the toolkit the title brings, or by the plain view, which paints the machine's screen (`engines/scenes.js`).
+  view its driver brings, or by the view of the toolkit the title brings, or by the plain view, which paints the
+  machine's screen (`engines/scenes.js`).
   A Commodore 64 title's Remake is the 64 itself. A title of its own engine is played by a module in its folder.
 
 [The four layers](../../docs/layers.md) explains how the Original, the Replica and the Remake differ, and what runs
@@ -29,11 +30,13 @@ dialogs (`disk/dialogs.js`, in a modal window, `modal.js`). A game saved in one 
 
 No title is named in it. A title is a folder of its own, kept with the title, which the page gives the player:
 
-- `title.js`, what the title is: the toolkit it was made with, where a package has it (`toolkit`, such as
-  `@moonbase-machines/vector/toolkit.js`), or its own engine, a module in its folder (`engine`); its screen where it
-  is not its machine's (`screen`, in its own dots); its `map` (the routines its code calls, by address, and what the
-  rules need beside them); when its machine warps (`warp`); the modules it brings (`modules`; `view`, its view's own
-  drawing; `fixes`, its bugs fixed); its stylesheet (`style`);
+- `title.js`, the title's driver, what the title is: the toolkit it was made with, where a package has it
+  (`toolkit`, such as `@moonbase-machines/vector/toolkit.js`), or its own engine, a module in its folder (`engine`);
+  its `map` (the routines its code calls, by address, and what the rules need beside them); when its machine warps
+  (`warp`); a view of its own, where it draws the game in its own way (`view`); the shape of its stage, where it is
+  not the machine's screen (`shape`, in its own dots); settings of its own, which the page places with the player's
+  (`settings`); the modules it brings (`modules`; `fixes`, its bugs fixed); its stylesheet (`style`). A driver
+  imports anything else it needs itself;
 - its own modules; `remake/README.md` says how the Remake runs the game on its machine, what the map holds, and how
   the views draw it.
 

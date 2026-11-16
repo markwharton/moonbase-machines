@@ -476,6 +476,47 @@ test('a view\'s step that the title warps is one stretch at warp', () => {
   assert.ok(warped[0][0] < fills[0] && warped[0][1] > fills[1] && warped[0][1] < fills[2], 'the stretch is the wave\'s');
 });
 
+// A card game whose own code draws twice, a stretch its map names as one step of the view's, then draws again and
+// waits for a key.
+const STRETCH = assemble(`
+*= $2000
+          JSR wave
+          JSR fill
+          LDY #2
+          JSR take
+${QUIT}
+wave:     JSR fill
+          JSR fill
+waved:    RTS
+fill:     LDX #100
+fill1:    DEX
+          BNE fill1
+          RTS
+take:     LDA $C000
+          BPL take
+          STA $C010
+          AND #$7F
+          RTS
+`);
+
+test('in a game with no toolkit too, nothing warps inside a view\'s step that the title does not warp, and a step after it warps again', () => {
+  const a = name => STRETCH.symbols.get(name);
+  const map = { routines: { [a('fill')]: 'fill', [a('take')]: 'take' }, steps: { ...STEPS, fill: {} }, view: { 'GAME.SYSTEM': { [a('wave')]: { step: 'wave', until: a('waved') } } } };
+  const clock = aFrame(), game = new Game({ disk: disk(STRETCH.bytes), map, warp: step => step.step === 'fill' }, { clock });
+  const events = [];
+  game.on(e => events.push(e));
+  const fills = startsOf(game, 'fill'), takes = startsOf(game, 'take');
+  const start = game.cycles;
+  assert.equal(game.run(), 'idle');
+  assert.deepEqual(events.filter(e => e.step === 'wave'), [{ step: 'wave', inside: true }]);
+  assert.equal(fills.length, 3);
+  // the two fills of the wave spent their time, and the fill after it ran at warp; the wait's polls spend the clock
+  const warped = game.untimed.filter(([, to]) => to <= takes[0]);
+  assert.deepEqual(warped.map(([from]) => from), [fills[2]]);
+  const [from, to] = warped[0];
+  nearWait(clock.owed, FRAME - ((game.cycles - start) - (to - from)) / CYCLES_PER_MS);
+});
+
 test('a vector game runs in auxiliary memory', () => {
   const { game, events, load } = vectorGame();
   load();

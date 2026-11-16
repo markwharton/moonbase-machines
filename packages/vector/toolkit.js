@@ -7,8 +7,9 @@
 //   steps              each routine's step, by the name a title's map gives it (steps.js)
 //   rules(core)        how the observer follows a game built on the toolkit (rules.js)
 //   game(game)         the memory the game runs in, and what the view reads of an ask, as the player's game starts
-//   view(svg, options) the view, which draws the game's events as SVG (view.js); `options` are the engine, the game's
-//                      data (`disk`) and the title's own drawing (`extra`)
+//   view(stage, options)  the view, which draws the game's events as SVG (view.js), on the SVG the player makes for
+//                      it (`options.svg()`); the other options it takes are the engine, the game's data (`disk`) and
+//                      `press`, which gives the game a key
 //   text               true: the view draws the words itself, so the setting Clean text applies to it
 //   overlay(m, layer)  the pictures drawn as SVG over the machine's own screen, for the setting Draw the pictures as
 //                      vectors
@@ -51,8 +52,8 @@ export const toolkit = {
     };
   },
 
-  // The view draws from the first volume of the game's data.
-  view: (svg, { disk, ...options }) => new View(svg, { ...options, disk, volume: Object.keys(disk.volumes)[0] }),
+  // The view draws on the SVG the player makes, from the first volume of the game's data.
+  view: (stage, { svg, disk, engine, press }) => new View(svg(), { disk, engine, press, volume: Object.keys(disk.volumes)[0] }),
   text: true,
 
   // The pictures over the machine's own screen. `overlay(m, layer)` gives a function the player calls at each frame

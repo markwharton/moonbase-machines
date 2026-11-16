@@ -32,11 +32,14 @@ const ARROWS = ['[', '\\', ']', '^'];
 const MODERN = { '[': '←', '\\': '→', ']': '↓', '^': '↑' };
 
 export class View {
-  // `svg` is the element to draw in; `disk` the title's disk from its game's data; `engine` the
-  // running engine; `extra` the title's own drawing for its problems (titles/<title>/view.js)
-  constructor(svg, { disk, volume, engine, extra = {}, press }) {
-    this.svg = svg; this.engine = engine; this.extra = extra; this.press = press; this.cleanText = true;
+  // `svg` is the element to draw in; `disk` the title's disk from its game's data; `engine` the running engine; `press`
+  // gives the game a key, as a person gives one. The title's own drawing for its problems is its driver's `drawing`
+  // (its title.js), each step's drawing by the step's name.
+  constructor(svg, { disk, volume, engine, press }) {
+    this.svg = svg; this.engine = engine; this.drawing = engine.title.drawing ?? {}; this.cleanText = true;
     svg.setAttribute('viewBox', '0 0 560 384');
+    // A key cap clicked is its key, given to the game (`cap`, below).
+    svg.addEventListener('click', e => { const key = e.target.closest('.key')?.dataset.key; if (key) press(+key); });
     fitWhenLoaded(svg);   // (the words fitted again once Inter has loaded)
     // the title's own glyphs, where its font differs from the toolkit's (its title.js `font`)
     useFont(engine.title.font);
@@ -100,7 +103,7 @@ export class View {
     this.difficulty = e.difficulty;
     if (this.spaceBar?.erase && !this.waiting()) { this.fill(this.spaceBar.y, this.spaceBar.y + 10, 5); this.spaceBar.el.remove(); this.spaceBar = null; }
     // a step the title draws itself comes first, so that no name of the view's own can take it
-    const f = this.extra[e.step] ?? (typeof this[e.step] === 'function' ? this[e.step] : undefined);
+    const f = this.drawing[e.step] ?? (typeof this[e.step] === 'function' ? this[e.step] : undefined);
     if (f) f.call(this, e);
   }
   waiting() { return this.engine.waitingOn; }

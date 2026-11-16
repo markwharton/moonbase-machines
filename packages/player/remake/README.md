@@ -6,8 +6,8 @@ by address. The observer turns each call into an event, and a view draws the eve
 screen. Because the code is the original's, the remake does what the original did, and the pilots can hold the two
 side by side, event by event.
 
-An Apple title's Remake has a view (`../engines/scenes.js`): the view of the toolkit the title was made with, where
-it brings one, or the plain view, which paints the machine's screen. A Commodore 64 title's Remake is the 64
+An Apple title's Remake has a view (`../engines/scenes.js`): the driver's own, where it brings one; else the view of
+the toolkit the title was made with, where it brings one; else the plain view, which paints the machine's screen. A Commodore 64 title's Remake is the 64
 itself, played by the Original's engine on Moonbase's ROMs (`../engines/original.js`), with the title's fixes made to
 its program when Bugs fixed is on (below).
 
@@ -18,10 +18,15 @@ module plays the game itself (below).
 
 The page gives the player the title's folder (`../README.md` says what is in it). For a Remake it holds:
 
-- `title.js`: the toolkit the title was made with, where a package has it (`toolkit`, below); the `map` (below);
-  `warp`, where the title has one (The clock, below); and the title's fixes, where it has them (Bugs fixed, below).
-- the title's own modules, where it has them: its view's own drawing (`view.js`, where `title.js` says `view`), its
-  fixes (`fixes`), and any other module its `title.js` names in `modules`.
+- `title.js`, the title's driver: the toolkit the title was made with, where a package has it (`toolkit`, below);
+  the `map` (below); `warp`, where the title has one (The clock, below); a view of its own, its stage's shape and
+  settings of its own, where it has them (The views, below); and the title's fixes, where it has them (Bugs fixed,
+  below).
+- the title's own modules, where it has them: its fixes (`fixes`), and any other module its `title.js` names in
+  `modules`. A driver imports anything else it needs itself, as a title on the vector toolkit imports the drawing of
+  its own routines and names it `drawing`.
+
+A page may give the player a second driver for the same disk, in a folder of its own.
 
 ## The game on its machine
 
@@ -41,8 +46,8 @@ game.press(13);
 
 `game.mem` is the memory the game runs in, as the title's toolkit says (its `game`). A game on the vector toolkit runs
 in auxiliary memory, and the language card's banks are placed in the top of the auxiliary 64K, so that one array holds
-everything the game reads and writes. A game with no toolkit runs in main memory, and its `title.screen` is the
-machine's soft switches.
+everything the game reads and writes. A game with no toolkit runs in main memory. `game.switches` is the machine's
+soft switches, which say what screen it shows.
 
 The machine counts the polls of the keyboard that find no key. When there have been 2,000, the observer says whether
 the game waits for a key or is busy. A routine that polls the keyboard while it works is busy, and the run goes on
@@ -53,15 +58,22 @@ the keyboard without waiting, it names the turn's step and has `turn` set.
 
 A title's `map` (its `title.js`) names the routines its code calls, by address, each with the name of the event a
 call makes (`routines`), and defines the steps of its own (`steps`). A title runs on its machine when its map has
-`routines`. The rest of the map is what the rules need beside them:
+`routines`.
+
+Any title's map may name places in its code that are steps of the view's (`view`), by the file the code is in: a
+place where the screen changes with no routine called, or a stretch of the game's own code, from its address until
+the address where it is done (`until`). Such a stretch is one event for the view, and it keeps its time (The clock,
+below). The observer follows these places for every title, with a toolkit or without.
+
+The rest of the map is what the rules need beside them:
 
 - **A title on the vector toolkit:** its disk's volume (`volume`); where its files load, when the disk's catalog has
   lost it (`loads`); the routine that sets the table of objects (`objects`); where the random routine keeps its seed
   (`seed`); the Main Menu, which the key reader jumps to (`menu`), or a way to the menus that keeps the screen and
   puts it back (`visit`); where the toolkit keeps what the view reads (`vars`); each problem's own routines
   (`problems`); the title's own routines the view has no drawing for, whose calls into the toolkit it draws instead
-  (`open`); places in the code where the screen changes with no routine called (`view`); a splash the loader shows
-  before the toolkit is in memory (`splash`); and characters a modern font would draw wrongly (`modern`).
+  (`open`); a splash the loader shows before the toolkit is in memory (`splash`); and characters a modern font would
+  draw wrongly (`modern`).
 - **A title with no toolkit, on the plain rules:** where the key reader takes the random routine's seed from
   (`seed`); a wait for a key that stirs the random routine as it polls (`stir`); and each loop of the game's own that
   reads the keyboard each turn, with the scene it is in, the address the scene loads at, and the name of the step a
@@ -103,7 +115,7 @@ optional:
 | `steps` | its steps' definitions, by the names a title's map gives its routines |
 | `rules(core)` | how the observer follows a game built on it: when it is in memory, which calls are the game's, and when the game waits |
 | `game(game)` | the memory the game runs in, and what it adds to the game, as the game starts (`game.js`) |
-| `view(svg, options)` | its view |
+| `view(stage, options)` | its view (The views, below) |
 | `text` | true when its view draws the words itself, so Clean text applies |
 | `overlay(m, layer)` | its drawing over the machine's own screen, for the Original's setting Draw the pictures as vectors (`../engines/original.js`) |
 
@@ -116,15 +128,27 @@ view paints the machine's screen. The vector toolkit is `@moonbase-machines/vect
 
 ## The views
 
-The page's runner (`../engines/scenes.js`) gives each event to a view as it happens, and the view draws it.
+The page's runner (`../engines/scenes.js`) gives each event to a view as it happens, and the view draws it. It takes
+the first of these that the title has:
 
+- The driver's own view (its `title.js` `view`), which draws the game in a way of its own. Its driver may give its
+  stage a shape of its own (`shape`, `[width, height]` in its own dots) and settings of its own (`settings`,
+  declarations as `../declared.js` has them), which the page places with the player's.
 - The toolkit's view, where the title's toolkit has one (its `view`). The vector toolkit's, `View`
   (`@moonbase-machines/vector/view.js`), draws the screen as SVG, 560 by 384. Its pictures are drawn from their shapes,
   smooth at any size, its objects from their own dots, and its words laid out as the toolkit laid them out. With Clean
-  text on, the words are drawn in a modern face. A title's `view.js` draws what the title's own routines drew.
+  text on, the words are drawn in a modern face. A title's own drawing (its driver's `drawing`) draws what the title's
+  own routines drew.
 - `card-view.js`, `CardView`, the plain view: the hi-res page or the text page the soft switches show, painted from
   the machine's memory dot for dot, for the monitor the Monitor setting names. With Clean text on, a title whose
   `title.js` has `text` has its words painted again in one colour (`clean-text.js`).
+
+A view is a function, `view(stage, options)`. It is given the stage, and it makes what it draws on there. The plain
+view and the vector toolkit's view draw on an SVG that the runner makes for them (`options.svg()`, the game's screen,
+`#screen`). A view is also given the game (`engine`), the game's data (`disk`), a key to give the game as a person
+gives one (`press`), each setting's value and its changes (`setting`), and a place on the options line for parts of
+its own (`control`). It may take a key before the game does (its `claim(k)`). `../engines/scenes.js` says what else
+a view may have.
 
 ## The clock
 
@@ -141,7 +165,9 @@ and 0 runs the game until it waits. The sound plays at pace 1 only.
 A title says when the machine warps, by its `title.js` `warp(step, game)`. The engine asks it as each outermost
 routine starts, with the routine's event, and clears the warp as the routine ends. A read from the disk is a step
 named `disk`. `game.turning` says whether the game is in a loop of its own that takes a key each turn without
-waiting. A title with no `warp` never warps, and plays at the original's speed throughout.
+waiting. A title with no `warp` never warps, and plays at the original's speed throughout. While a
+stretch of the game's code that the map names as a step of the view's runs (The map, above), and the title does not
+warp it, nothing inside it warps: a game whose pace is its drawing keeps the original's time there.
 
 ```js
 warp: step => DRAWS.includes(step.step) || step.step === 'disk'

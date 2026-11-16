@@ -31,7 +31,7 @@ export class CardView {
   apply(e) { this.clean?.apply(e); }
   // the screen, when a run has gone as far as it goes
   prompts() {
-    const mem = this.engine.mem, s = this.engine.title.screen, ctx = this.canvas.getContext('2d');
+    const mem = this.engine.mem, s = this.engine.switches, ctx = this.canvas.getContext('2d');
     const pixels = ctx.createImageData(560, 384), page = s.page2 ? 0x4000 : 0x2000;
     const ink = PHOSPHORS[this.monitor], lit = ink ?? WHITE;   // (a monochrome monitor's phosphor, or none on colour)
     if (s.text) paintText(pixels.data, mem, mem, false, [0, 24], lit);

@@ -7,8 +7,10 @@
 //   node --test test/*.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { code, named, typing } from '@moonbase-machines/player/keys.js';
 import { gameData } from '@moonbase-machines/player/data.js';
 import { savesFor } from '@moonbase-machines/player/saves.js';
@@ -356,6 +358,44 @@ test('a text page code as its character: inverse below $80, the low codes as cap
   assert.deepEqual(textChar(0xff), { ch: ' ', inverse: false });
 });
 
+// (just enough of a page for play(): each element the player asks for, made the first time it asks; the column 1,148
+// pixels wide, in a window 2,000 wide, one pixel a device's pixel)
+function page() {
+  const element = () => {
+    const parts = new Map();
+    return {
+      style: { setProperty() {} }, classList: { add() {}, toggle() {}, contains: () => false }, clientWidth: 1148, textContent: '',
+      set innerHTML(html) { parts.clear(); }, append() {}, before() {}, insertAdjacentHTML() {}, addEventListener() {},
+      querySelector: s => parts.get(s) ?? parts.set(s, element()).get(s),
+    };
+  };
+  const browser = { window: globalThis, devicePixelRatio: 1, addEventListener() {}, matchMedia: () => ({ matches: false }),
+    getComputedStyle: () => ({ paddingLeft: '0px', maxHeight: 'none' }), document: { createElement: element, documentElement: { clientWidth: 2000 } } };
+  const was = Object.keys(browser).filter(k => k in globalThis).map(k => [k, globalThis[k]]);
+  Object.assign(globalThis, browser);
+  return { root: element(), done: () => { for (const k of Object.keys(browser)) delete globalThis[k]; Object.assign(globalThis, Object.fromEntries(was)); } };
+}
+
+test('a driver\'s shape and settings reach the page: the stage the driver\'s shape, its settings heard with the player\'s and its engine\'s', async () => {
+  const { play } = await import('@moonbase-machines/player/play.js');
+  // (a driver whose engine is a module of its own, which declares a setting it uses, as an engine does)
+  const at = pathToFileURL(mkdtempSync(join(tmpdir(), 'title-')) + '/');
+  writeFileSync(new URL('title.js', at), "export default { slug: 'one', engine: 'game', shape: [574, 376], settings: [{ name: 'ways', type: 'boolean', default: true, owner: 'person', words: 'Ways' }] };");
+  writeFileSync(new URL('game.js', at), "export const uses = () => [{ name: 'speed', type: 'boolean', default: false, owner: 'person', words: 'Speed' }]; export async function play(g) { globalThis.given = g; }");
+  const { root, done } = page();
+  try {
+    let heard = null;
+    await play({ way: 'remake', slug: 'one', title: at.href, data: new URL('data/', at).href, root, disk: {}, settings: { get: def => def.default, on() {} }, words: { printer: {} },
+      using: (defs, line) => { heard = { names: defs.map(d => d.name), line }; } });
+    const stage = root.querySelector('.stage');
+    assert.deepEqual([stage.style.width, stage.style.height], ['1148px', '752px'], 'the driver\'s shape, two pixels a dot');
+    assert.deepEqual(heard.names, ['sound', 'speed', 'ways'], 'the player\'s, its engine\'s and the driver\'s');
+    assert.equal(heard.line, root.querySelector('.options .settings'), 'with the place for settings on the options line');
+    const ways = globalThis.given.title.settings[0];
+    assert.equal(globalThis.given.setting(ways).value, true, 'the driver\'s setting read where it acts');
+  } finally { done(); delete globalThis.given; }
+});
+
 test('each engine says which settings it uses, from the title and the game\'s data', async () => {
   const { uses: remake } = await import('@moonbase-machines/player/engines/scenes.js');
   const { uses: original } = await import('@moonbase-machines/player/engines/original.js');
@@ -366,6 +406,7 @@ test('each engine says which settings it uses, from the title and the game\'s da
   assert.deepEqual(names(remake({ title: { toolkit: { view: () => null } }, game: { kind: 'prodos' } })), names([]), 'a title whose toolkit has a view that draws no text');
   assert.deepEqual(names(remake({ title: { text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([CLEAN_TEXT, MONITOR, MINI]), 'a title with no toolkit, with text and a mini view');
   assert.deepEqual(names(remake({ title: {}, game: { kind: 'dos33' } })), names([MONITOR]), 'a title with no toolkit, without text');
+  assert.deepEqual(names(remake({ title: { view: () => null, toolkit, text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([]), 'a driver with a view of its own, which reads the settings its driver declares');
   assert.deepEqual(remake({ title: {}, game: { kind: 'c64' } }), [], 'a Commodore 64 title');
   assert.deepEqual(names(original({ title: { toolkit }, game: { kind: 'prodos' } })), names([MONITOR, VECTORS]), 'an Apple game whose toolkit has an overlay');
   assert.deepEqual(names(original({ title: {}, game: { kind: 'prodos' } })), names([MONITOR]), 'an Apple game with no toolkit');

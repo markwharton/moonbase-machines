@@ -6,28 +6,29 @@
 // disk and the settings are the page's to give (its provider, provider.js), and the player reads no address and
 // keeps nothing in the browser itself.
 //
-//   await play({ way, slug, title, data, root, disk, settings, using, preview, words, screen, watch, claim, pace,
+//   await play({ way, slug, title, data, root, disk, settings, using, preview, words, watch, claim, pace,
 //                keys, route, mini, roms, studies, downloadDisk })
 //     way          'original' or 'remake' (the default)
 //     slug         the title's name in addresses: its section's class, its disk
-//     title        the title's folder, an absolute URL (title.js and its own modules), where it has one; a game
-//                  without one (a study) has only its data
+//     title        the title's folder, an absolute URL, where it has one. It holds the title's driver (title.js) and
+//                  its own modules. A game without one (a study) has only its data.
 //     data         its game's data, an absolute URL (<name>.json: its disks' files, its kind, its saves), or for a
 //                  title of its own engine the folder its data is in
 //     root         the page's section the player is made in
 //     disk         the title's disk (disk/disk.js `openDisk`, `title/<slug>`), the page's to open where it keeps files
 //     settings     the person's settings, the page's typed store (settings.js): each declared setting's value, kept
-//     using        called with the settings this game uses (declared.js), once its title and data are loaded and
-//                  before it runs, for the page to place their controls
+//     using        called with the settings this game uses and the place for settings on the options line, once its
+//                  title and data are loaded and before it runs, for the page to place their controls. The settings
+//                  are the player's own and its engine's (declared.js), and on the Remake the driver's own (its
+//                  title.js `settings`).
 //     preview     the preview's build: what only it has may be used
 //     words        the page's words the player shows: { printer: { line, print, tear } }
-//     screen       [width, height], the screen's shape in its own dots where the page draws its own over it
 //   and what a page that follows the game asks:
 //     watch        called with { engine, press } once the game is ready: its engine (where it has one), and a key
 //                  pressed as the player presses one
 //     claim        k => true to take a key of the player's before the game does
 //     pace         a Remake's time against the original's: 1 the original's (the default), a half twice as fast, 0
-//                  none, the game running until it waits; heard only at 1. A number or a function, read each frame
+//                  none, the game running until it waits; heard only at 1
 //   and what only a workshop has, given by its pages, never looked for here:
 //     keys         keys to press at the start, by name (space, return, left...), to go straight to a scene
 //     route        a route to play first, { name, route, keys }: its keys, and the pilots' key handling
@@ -37,6 +38,9 @@
 //     downloadDisk a Commodore 64 game's disk offered to download, with what is saved on it
 //   and, from the game's data (data.js `demonstrations`), where the engine can type them: a button for each
 //   demonstration, its name, typing its steps into the game as the keys would be; the person's first key ends it.
+//
+// The stage has the shape of the machine's screen, or the driver's own shape where it gives one (its title.js `shape`,
+// [width, height] in its own dots).
 //
 // The status line, #status, says what the game is doing. When something goes wrong, such as the game stopping, the
 // makers' ROMs missing or a file not kept, the status line has the class `error`. A page can use the class to show the
@@ -109,23 +113,25 @@ export async function play(options) {
     }
     // (a save the disk's backend could not store, said, not lost)
     disk.failed = err => say('A file was not kept: ' + err.message, { error: true });
-    const [dots, lines] = options.screen ?? title?.screen ?? SCREENS[kind] ?? SCREENS.prodos;
+    const [dots, lines] = title?.shape ?? SCREENS[kind] ?? SCREENS.prodos;
     fit(stage, root, dots, lines);
 
     const g = {
       way, slug, title, game, folder, data, stage, status, say, fail, disk, preview, words, fixed, $, setting,
       saves: game ? savesFor(game, disk) : null, roms: options.roms, studies: options.studies, mini: options.mini ?? null,
       chargen: null,   // (the engine's Commodore 64 characters, for the printer's paper)
-      pace: () => { const p = options.pace; return typeof p === 'function' ? p() : p ?? 1; },
-      // an engine's own part of the options line that is no setting (Aztlan's preview selector), after the settings
-      control(html) { line.insertAdjacentHTML('afterend', html); },
+      pace: () => options.pace ?? 1,
+      // A part of the options line that is no setting, an engine's or a view's own, such as a preview's selector or a
+      // button: HTML, or an element. Each part goes after the settings and after the parts placed before it.
+      control(part) { if (typeof part === 'string') $('disk').insertAdjacentHTML('beforebegin', part); else $('disk').before(part); },
     };
     // The settings this game uses: the player's own (the speaker, a Commodore 64 game's printer, and the title's version
-    // with its bugs fixed where it has one) and its engine's (its `uses`). The page hears them before the game runs,
-    // to place their controls.
+    // with its bugs fixed where it has one), its engine's (its `uses`), and on the Remake the driver's own (its
+    // `settings`). The page hears them before the game runs, to place their controls.
     const engine = way === 'original' ? await ENGINES.original() : title.own ?? await ENGINES.remake();
-    used = [SOUND, ...(kind === 'c64' ? [PRINTER] : []), ...(way === 'remake' && title?.fixed ? [FIXED] : []), ...(engine.uses?.(g) ?? [])];
-    options.using?.(used);
+    used = [SOUND, ...(kind === 'c64' ? [PRINTER] : []), ...(way === 'remake' && title?.fixed ? [FIXED] : []), ...(engine.uses?.(g) ?? []),
+      ...(way === 'remake' ? title?.settings ?? [] : [])];
+    options.using?.(used, line);
     // a printer on device 4, for a Commodore 64 game: on unless the setting is off, what it prints drawn below the
     // screen as a sheet of paper, until it is torn off
     if (kind === 'c64') {
