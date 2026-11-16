@@ -183,6 +183,47 @@ test('a card game\'s routine that waits spends the clock like any other code', (
   nearWait(clock.owed, FRAME - (game.cycles - start) / CYCLES_PER_MS);
 });
 
+// A card game whose own code works for about 63 ms, calling no routine, and then waits for a key.
+const OWN_CODE = assemble(`
+*= $2000
+          LDY #50
+own1:     LDX #0
+own2:     DEX
+          BNE own2
+          DEY
+          BNE own1
+          LDY #2
+          JSR take
+${QUIT}
+take:     LDA $C000
+          BPL take
+          STA $C010
+          AND #$7F
+          RTS
+`);
+
+test('a title that warps the game\'s own code spends nothing on it, and its cycles are untimed', () => {
+  const clock = aFrame(), map = { routines: { [OWN_CODE.symbols.get('take')]: 'take' }, steps: STEPS };
+  const game = new Game({ disk: disk(OWN_CODE.bytes), map, warp: step => step.step === 'game' }, { clock });
+  const takes = [];
+  game.on(e => { if (e.step === 'take') takes.push(game.cycles); });
+  const start = game.cycles;
+  assert.equal(game.run(), 'idle', 'through code longer than a frame');
+  assert.deepEqual(game.untimed[0], [start, takes[0]], 'the game\'s own code, up to the routine\'s start');
+  // only the routine that waits spends the clock, its polls among it
+  nearWait(clock.owed, FRAME - (game.cycles - takes[0]) / CYCLES_PER_MS);
+});
+
+test('a title that warps the game\'s own code is asked about each routine afresh: one it does not warp spends its time', () => {
+  const clock = aFrame(), { game } = timedGame('longs', { clock, warp: step => step.step === 'game' });
+  const longs = [];
+  game.on(e => { if (e.step === 'unpack') longs.push(game.cycles); });
+  assert.equal(game.run(), 'frame');
+  assert.equal(game.observer.running, 'unpack');
+  assert.equal(clock.warp, false);
+  near(clock.owed, FRAME - (game.cycles - longs[0]) / CYCLES_PER_MS);
+});
+
 // A card game whose scene's own loop takes a turn at `turn`, while the scene is in memory at $AD00, and then waits.
 const TURN = assemble(`
 *= $2000
@@ -567,7 +608,8 @@ ${QUIT}`;
 
 test('the game is turning from a turn\'s end until it waits, and a warp can read it', () => {
   const asked = [];
-  const warp = (step, game) => { const w = step.step === 'box' && !game.turning; asked.push([step.step, w]); return w; };
+  // (the routines asked about, in order: the game's own code is asked about between them)
+  const warp = (step, game) => { const w = step.step === 'box' && !game.turning; if (step.step !== 'game') asked.push([step.step, w]); return w; };
   const { game, load } = vectorGame({ scene: TURNS, warp });
   load();
   assert.equal(game.run(), 'idle');

@@ -24,10 +24,17 @@
 //   game.observer       the observer: its depth, the routine running, a key's time
 //
 // Time. The machine counts the game's time in cycles. The clock says how much of it the page owes, and the run
-// spends that as the machine goes. While the clock warps the machine runs flat out and spends nothing. The engine sets
-// the warp as the outermost routine starts, by asking the title (its title.js `warp(step, game)`), and clears it as
-// the routine ends. A title with no `warp` plays at the original's speed throughout. A read from the disk is a step
-// named `disk`: at warp it arrives at once, and otherwise the page waits the time the drive took.
+// spends that as the machine goes. While the clock warps the machine runs flat out and spends nothing. The engine asks
+// the title whether a step warps (its title.js `warp(step, game)`), and asks about three kinds of step:
+// - A routine of the map, and a stretch of the map's `view`, is asked about as the outermost one starts. Its answer
+//   is the warp until it ends.
+// - A read from the disk is a step named `disk`. At warp it arrives at once, and otherwise the page waits the time
+//   the drive took.
+// - The game's own code, which runs while no routine or stretch does, is a step named `game`. The engine asks about
+//   it as each run starts and as each outermost step ends.
+// A title that warps the game's own code is still asked about each routine afresh, so a routine it does not warp keeps
+// its time, a sound or a pause among them. A title with no `warp` plays at the original's speed throughout. The cycles
+// that run at warp are untimed (`untimed`), and the speaker leaves them out.
 //
 // A game may pace itself by its drawing: a loop that draws two pictures in turn moves at the speed they are drawn. The
 // title's map names such a stretch of the game's code as a step of the view's (its `view`, with `until`), and the title
@@ -71,6 +78,9 @@ export class Game {
     this.waiter = null;
     // the view's step running that keeps its time: nothing inside it warps
     this.keeping = null;
+    // the outermost step running, a routine of the map or a stretch of its `view`, or null while the game's own code
+    // runs; and the cycle where the game's own code began to run at warp, or null
+    this.outer = null; this.ownFrom = null;
     // the last key pressed; whether the game has given an event yet; and whether its loader's splash has been shown
     this.key = null; this.begun = false; this.splashed = false;
     this.took = new WeakMap();
@@ -86,15 +96,20 @@ export class Game {
       toolkit: title.toolkit, game: title.disk, seed: () => title.seed, view: true,
       emit: event => { this.begun = true; this.emit(event); },
       enter: (event, span) => {
-        starts.set(event, { from: m.cpu.cycles, warp: clock.warp });
+        // The outermost step ends the game's own code, and the title is asked about it afresh: it does not warp with
+        // the game's own code.
+        const outer = this.outer === null;
+        if (outer) { this.ownEnds(); this.outer = event; }
+        const inherited = outer ? false : clock.warp;
+        starts.set(event, { from: m.cpu.cycles, warp: inherited });
         // a routine that waits for a key ends the turns of a game's own loop
         if (this.steps[event.step]?.waits) this.turning = false;
         if (!this.waiter && kind.frees?.(event)) this.waiter = { event, from: m.cpu.cycles };
         // A step inside one that warps warps with it. A step of the view's own that does not warp keeps its time, and
         // so does every step inside it.
         const warps = this.warps(event);
-        if (span && !warps && !clock.warp) this.keeping = event;
-        clock.warp = clock.warp || warps && !this.keeping;
+        if (span && !warps && !inherited) this.keeping = event;
+        clock.warp = inherited || warps && !this.keeping;
         kind.enter?.(event);
       },
       leave: event => {
@@ -112,8 +127,10 @@ export class Game {
         // a turn has been taken: the game is in its own loop until it next waits for a key
         if (this.steps[event.step]?.turn) this.turning = true;
         kind.leave?.(event);
+        // the outermost step is over: the game's own code goes on, and the title is asked about it again
+        if (this.outer === event) { this.outer = null; this.own(); }
       },
-      left: () => { this.turning = false; this.waiter = null; this.keeping = null; clock.warp = false; },
+      left: () => { this.turning = false; this.waiter = null; this.keeping = null; this.outer = null; this.own(); },
       tap: kind.tap,
     });
   }
@@ -132,6 +149,19 @@ export class Game {
   press(key) { this.keys.push(key); }
   // whether a step runs at warp: the title says (its title.js `warp`)
   warps(step) { return !!this.title.warp?.(step, this); }
+  // The game's own code: the code that runs while no step runs. The title says whether it warps, as a step named
+  // `game`. While no step runs, the clock's warp is the title's answer. A stretch of it at warp is begun here.
+  own() {
+    if (this.outer) return;
+    this.clock.warp = !this.keeping && this.warps({ step: 'game' });
+    if (this.clock.warp) this.ownFrom ??= this.m.cpu.cycles;
+  }
+  // The game's own code at warp stops at a step's start, a wait, a frame's end and the run's end. The cycles it ran at
+  // warp are untimed, so that the speaker leaves them out.
+  ownEnds() {
+    if (this.ownFrom !== null && this.m.cpu.cycles > this.ownFrom) this.untimed.push([this.ownFrom, this.m.cpu.cycles]);
+    this.ownFrom = null;
+  }
 
   // Run the machine until the game waits for a key, or ends. The keys pressed since the last run go to the machine's
   // keyboard first. A routine that polls the keyboard while it is busy looks idle to the machine: the run goes on
@@ -147,8 +177,10 @@ export class Game {
     // (a run that goes on from a frame's stop goes on counting the polls with no key, as the machine's one run would)
     if (!this.framed) { m.idle = 0; this.polled = null; o.mark?.(); }
     this.framed = false; this.waitingOn = null;
+    // (the title asked about the game's own code, where no step runs: its answer may depend on the game)
+    this.own();
     let warped = 0;
-    const frame = () => { this.framed = true; return 'frame'; };
+    const frame = () => { this.framed = true; this.ownEnds(); return 'frame'; };
     for (let n = 0; n < limit && !m.halted; n++) {
       // A read from the disk still to come. At warp it arrives at once. Otherwise the machine stands still while the
       // page waits the time the drive took, which the clock owes like any other.
@@ -180,6 +212,7 @@ export class Game {
       if (clock.free || held) { if (clock.scale && (warped += cycles) > WARP) return frame(); }
       else if ((clock.owed -= cycles / CYCLES_PER_MS) <= 0) return frame();
     }
+    this.ownEnds();
     if (m.halted === 'quit') { this.ended = true; return 'end'; }
     if (m.halted) throw new Error('the game has stopped: ' + m.halted);
     return 'steps';
@@ -194,7 +227,8 @@ export class Game {
     const turn = o.ticking();
     const name = turn ?? (o.depth > 0 && o.running ? o.running : splash ? 'splash' : 'read-key');
     if (!turn) this.turning = false;
-    // the polls that found the wait are no part of the game's sound
+    // the polls that found the wait are no part of the game's sound, nor the game's own code at warp before them
+    this.ownEnds();
     const from = o.since?.() ?? this.polled;
     if (from !== null) this.untimed.push([from, this.m.cpu.cycles]);
     this.waitingOn = turn ? { words: [name], turn: true } : { words: [name] };

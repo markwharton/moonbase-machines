@@ -162,10 +162,18 @@ The clock is plain: it ticks, and it can warp. While it warps, the machine runs 
 owed, and is not heard. The page's `pace` is the clock's scale: 1 is the original's speed, a half is twice as fast,
 and 0 runs the game until it waits. The sound plays at pace 1 only.
 
-A title says when the machine warps, by its `title.js` `warp(step, game)`. The engine asks it as each outermost
-routine starts, with the routine's event, and clears the warp as the routine ends. A read from the disk is a step
-named `disk`. `game.turning` says whether the game is in a loop of its own that takes a key each turn without
-waiting. A title with no `warp` never warps, and plays at the original's speed throughout. While a
+A title says when the machine warps, by its `title.js` `warp(step, game)`. The engine asks it about three kinds of
+step:
+
+- A routine of the map, as its outermost call starts, with the routine's event. The answer holds until the routine
+  ends. A stretch of the map's `view` is asked about the same way.
+- A read from the disk, a step named `disk`.
+- The game's own code, the code that runs while no routine or stretch runs, a step named `game`. The engine asks as
+  each run starts and as each outermost routine or stretch ends.
+
+A title that warps the game's own code is still asked about each routine afresh, so a routine it does not warp keeps
+its time, as a sound or a pause must. `game.turning` says whether the game is in a loop of its own that takes a key
+each turn without waiting. A title with no `warp` never warps, and plays at the original's speed throughout. While a
 stretch of the game's code that the map names as a step of the view's runs (The map, above), and the title does not
 warp it, nothing inside it warps: a game whose pace is its drawing keeps the original's time there.
 
