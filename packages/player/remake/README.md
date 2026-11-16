@@ -200,13 +200,13 @@ names the animation's stretch of code in its map, and leaves that step out of wh
 
 | | A picture drawn elsewhere | An animation the title names and does not warp | Sounds and pauses |
 |---|---|---|---|
-| Turbo | at once | the original's time | the original's time |
+| Turbo | immediately | the original's time | the original's time |
 | Original | the original's time | the original's time | the original's time |
 
 The setting is offered for a title whose `title.js` has a `warp`.
 
 A routine that the title's toolkit frees (its game's `frees`) runs flat out while it waits for a key, so that what it
-draws to ask is shown at once. When it returns, the time it took since its last key is owed. The cycles that ran at
+draws to ask is shown immediately. When it returns, the time it took since its last key is owed. The cycles that ran at
 warp stay the machine's, so the pilots hold the same cycles and clicks whatever the clock did; the speaker leaves them
 out (`game.untimed`).
 
