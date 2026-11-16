@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.23.0] - 2026-11-16
+
+### Added
+
+- Sound is a menu, On or Off (3f73c07)
+- every game has the Monitor setting (665baee)
+
+### Fixed
+
+- the stage's corners scale with the screen (f82e219)
+- an interrupt's way in takes the cycles Commodore's does (e627fdb)
+- a raster interrupt comes at the start of its line (4a8d086)
+
+### Documentation
+
+- the README says how a view is shown on a monitor (b1c01af)
+
 ## [v0.22.0] - 2026-11-16
 
 ### Added
@@ -361,3 +378,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.20.0]: https://github.com/markwharton/moonbase/compare/v0.19.0...v0.20.0
 [v0.21.0]: https://github.com/markwharton/moonbase/compare/v0.20.0...v0.21.0
 [v0.22.0]: https://github.com/markwharton/moonbase/compare/v0.21.0...v0.22.0
+[v0.23.0]: https://github.com/markwharton/moonbase/compare/v0.22.0...v0.23.0
