@@ -10,7 +10,9 @@
 //   default  its value where nothing gives one
 //   owner    whose it is: 'person' (the only owner yet; a parent's or teacher's later is another layer here, with
 //            nothing changed where the setting is declared)
-//   words    what its control calls it; labels, an enum's values' words in order; title, a note on the control
+//   words    what its control calls it
+//   labels   the words for its values: an enum's, in the order of its values, or a boolean's two, for true then false
+//   title    a note on the control
 //
 //   check(type, value)       whether a value is of the type
 //   describe(type)           the type in words, for saying what was refused
@@ -31,8 +33,9 @@
 //                              stops it.
 //   settings.offered(def)      whether its control is shown: not where the page hides it or fixes it
 //
-//   control(def, settings, { failed? })   a setting's control, as a <label>: a box for a boolean or a menu for an
-//                                      enum, with its words from the declaration. It shows the store's value and
+//   control(def, settings, { failed? })   a setting's control, as a <label>: a menu for an enum and for a boolean
+//                                      that has labels, a box for any other boolean. Its words are the
+//                                      declaration's. It shows the store's value and
 //                                      follows every change of it, wherever made, so two controls for one setting
 //                                      stay in step. A change made with it goes to the store. If it cannot be kept,
 //                                      the setting goes back to the old value, and failed(error) hears why.
@@ -46,14 +49,20 @@ export function check(type, value) {
   throw new Error('settings: no such type: ' + JSON.stringify(type));
 }
 
+// The values a setting's menu offers, in the order of its labels: an enum's values, or true and false for a boolean
+// that has labels. A boolean with no labels has no menu, and its control is a box.
+const menu = def => Array.isArray(def.type) ? def.type : def.labels ? [true, false] : null;
+
 export function control(def, settings, { failed = () => {} } = {}) {
-  const label = document.createElement('label'), choice = Array.isArray(def.type);
+  const label = document.createElement('label'), values = menu(def), choice = !!values;
   if (def.title) label.title = def.title;
   const box = choice
-    ? Object.assign(document.createElement('select'), { innerHTML: def.type.map((v, i) => `<option value="${v}">${def.labels[i]}</option>`).join('') })
+    ? Object.assign(document.createElement('select'), { innerHTML: values.map((v, i) => `<option value="${v}">${def.labels[i]}</option>`).join('') })
     : Object.assign(document.createElement('input'), { type: 'checkbox' });
   box.id = def.name;
-  const show = v => { if (choice) box.value = v; else box.checked = v; };
+  // A menu's options hold their values as text, so the chosen value is the one whose text the menu holds.
+  const chosen = () => values.find(v => String(v) === box.value);
+  const show = v => { if (choice) box.value = String(v); else box.checked = v; };
   show(settings.get(def));
   if (choice) label.append(def.words + ' ', box); else label.append(box, ' ' + def.words);
   settings.on(def, show);
@@ -61,7 +70,7 @@ export function control(def, settings, { failed = () => {} } = {}) {
   // to what it was, and `failed` hears why.
   box.addEventListener('change', async () => {
     const before = settings.get(def);
-    try { await settings.set(def, choice ? box.value : box.checked); }
+    try { await settings.set(def, choice ? chosen() : box.checked); }
     catch (err) {
       settings.set(def, before).catch(() => {});
       show(settings.get(def));

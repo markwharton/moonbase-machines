@@ -332,7 +332,7 @@ test('a setting\'s control follows the store, wherever a change is made, and one
   // (just enough of a page for one checkbox)
   const made = [];
   globalThis.document = { createElement: tag => { const el = { tag, listeners: {}, append() {}, addEventListener(t, f) { this.listeners[t] = f; } }; made.push(el); return el; } };
-  const def = { name: 'sound', type: 'boolean', default: true, owner: 'person', words: 'Sound' };
+  const def = { name: 'printer', type: 'boolean', default: true, owner: 'person', words: 'Printer' };
   // (a store that keeps every value but false, which it cannot store)
   let value = true; const heard = [];
   const settings = { get: () => value, on: (d, f) => heard.push(f), set: (d, v) => { value = v; for (const f of heard) f(v); return v === false ? Promise.reject(new Error('offline')) : Promise.resolve(); } };
@@ -347,6 +347,27 @@ test('a setting\'s control follows the store, wherever a change is made, and one
   assert.equal(why, 'offline');
   settings.set(def, 'elsewhere');
   assert.equal(box.checked, 'elsewhere', 'a change made elsewhere shows in the box');
+  delete globalThis.document;
+});
+
+test('a yes or no setting that has labels is a menu of the two, and keeps true or false', async () => {
+  const { control } = await import('@moonbase-machines/player/settings.js');
+  const { SOUND } = await import('@moonbase-machines/player/declared.js');
+  // (just enough of a page for one menu)
+  const made = [];
+  globalThis.document = { createElement: tag => { const el = { tag, listeners: {}, append() {}, addEventListener(t, f) { this.listeners[t] = f; } }; made.push(el); return el; } };
+  let value = true; const heard = [];
+  const settings = { get: () => value, on: (d, f) => heard.push(f), set: (d, v) => { value = v; for (const f of heard) f(v); return Promise.resolve(); } };
+  control(SOUND, settings);
+  const box = made.find(el => el.tag === 'select');
+  assert.ok(box && !made.some(el => el.tag === 'input'), 'a menu, and no box');
+  assert.equal(box.innerHTML, '<option value="true">On</option><option value="false">Off</option>');
+  assert.equal(box.value, 'true', 'the store\'s value');
+  box.value = 'false';
+  await box.listeners.change();
+  assert.strictEqual(value, false, 'Off is kept as false');
+  settings.set(SOUND, true);
+  assert.equal(box.value, 'true', 'a change made elsewhere shows in the menu');
   delete globalThis.document;
 });
 
