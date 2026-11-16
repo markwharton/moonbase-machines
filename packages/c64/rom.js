@@ -145,7 +145,9 @@ export function install(m) {
   for (const a of [0xea31, 0xea34, 0xea7b, 0xea7e]) { const f = c.hooks.get(a); set(a, () => { f(c); r(0xdc0d); exit(); return false; }); }
   set(0xea81, () => { exit(); return false; });
   // the way in: A, X and Y kept, and on through $0316 for BRK or $0314 for an interrupt ($FF48)
-  set(0xff48, () => { c.push(c.a); c.push(c.x); c.push(c.y); c.pc = vector(r(0x104 + c.sp) & 0x10 ? 0x316 : 0x314); return false; });
+  // (It takes the 29 cycles Commodore's routine takes, so that a game's raster interrupt changes the screen at the
+  // same place in the line on both ROMs.)
+  set(0xff48, () => { c.push(c.a); c.push(c.x); c.push(c.y); c.cycles += 29; c.pc = vector(r(0x104 + c.sp) & 0x10 ? 0x316 : 0x314); return false; });
   // NMI, the RESTORE key: on through $0318 ($FE43), whose own routine ($FE47) answers CIA 2 and returns
   set(0xfe43, () => { c.i = 1; c.pc = vector(0x318); return false; });
   set(0xfe47, () => { r(0xdd0d); c.p = c.pull(); c.pc = c.pull() | c.pull() << 8; return false; });
