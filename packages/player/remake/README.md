@@ -150,6 +150,10 @@ gives one (`press`), each setting's value and its changes (`setting`), and a pla
 its own (`control`). It may take a key before the game does (its `claim(k)`). `../engines/scenes.js` says what else
 a view may have.
 
+Every title has the Monitor setting. A view that paints the monitor itself says so (`paintsMonitor`), as the plain
+view does, and is given the setting's value (`monitor`). Any other view is shown through a filter on the stage: on a
+monochrome monitor each colour becomes its brightness, in the colour of the monitor's phosphor.
+
 ## The clock
 
 The page runs the game on one clock (`clock.js`, sixty frames a second, `../engines/scenes.js`). Each frame ticks the
