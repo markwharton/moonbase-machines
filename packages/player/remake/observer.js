@@ -14,7 +14,8 @@
 //     started    () => whether the game has started; it has from the first, if not given
 //     emit       event => {}, given each event in order
 //     view       true to be given the view's own events too, each marked `inside`: they are no steps of the
-//                transcript, and a view draws them (the rules say which they are)
+//                transcript, and a view draws them. They are the steps the map's `view` names (below), and the calls
+//                the rules give the view
 //     enter      (event, span) => {}, given a routine's event as it starts: the outermost routine's, and with `view`
 //                each routine given to the view inside it, and a view's step that runs for a while. `span` is true
 //                for the last: a stretch of the game's own code that the map names as one step
@@ -53,6 +54,14 @@
 //                                                 routine starts, ends and returns; the game leaves every routine
 //   chain, once, returnTo, called, keyed          the helpers below
 //   describe, result                              a call's event and a result's (events.js)
+//
+// The map's `view` names places in the game's code that are steps of the view's, by the file the code is in. Such a
+// place changes the screen with no routine of the map called, as a part's own code scrolls a picture. Each is an
+// event for the view when the game reaches it while its file is in memory. An entry is a step's name, or an event's
+// fields. A step that runs for a while gives `until`, the address where it is done. It is one event, however many
+// times its code passes its own address, and `enter` and `leave` are given it as it starts and ends. The file is in
+// the map's `volume`, or else in the first volume that has it, and it is in memory where the map's `loads` says, or
+// else where the disk's catalog loads it. The observer follows these places for every title, on any rules.
 //
 // A hook is a function the processor runs when it reaches an address (`m.cpu.hooks`). It returns false to let the
 // code there run, 'wait' to be run again at the next step, and anything else to return as RTS does.
@@ -126,10 +135,12 @@ export function observe(m, map, options) {
   };
   // A routine returns, and the game is one routine less deep.
   s.returns = () => { if (--s.depth === 0) s.end(); };
-  // The game leaves every routine without returning, as a jump to the Main Menu does.
-  s.leaveAll = () => { s.depth = 0; s.end(); s.era = ++s.eras; rules.left?.(); options.left?.(); };
+  // The game leaves every routine without returning, as a jump to the Main Menu does. A step of the view's that is
+  // still running is over then.
+  s.leaveAll = () => { s.depth = 0; s.end(); s.era = ++s.eras; spans.end(); rules.left?.(); options.left?.(); };
 
-  // The toolkit's rules, or the plain rules for a title with no toolkit.
+  // The map's own steps of the view's (above), then the toolkit's rules, or the plain rules for a title with no toolkit.
+  const spans = viewSteps(s);
   const rules = (toolkit?.rules ?? plain)(s);
   // A hook at each routine of the map. A call is the game's own when the routine is in memory and `mine` says so.
   for (const { at, full, present } of rules.routines) {
@@ -141,6 +152,32 @@ export function observe(m, map, options) {
     get running() { return s.running; },
     waits: rules.waits, ticking: rules.ticking, mark: rules.mark, time: rules.time, since: rules.since, problem: rules.problem,
   };
+}
+
+// The map's steps of the view's (above), each hooked at its place in the game's code, with the view's events wanted.
+// `end()` ends every one still running.
+function viewSteps(s) {
+  const { m, map, game, started, chain } = s;
+  const running = new Set();
+  for (const [name, steps] of s.view ? Object.entries(map.view ?? {}) : []) {
+    const file = (map.volume ? game.volumes[map.volume] : Object.values(game.volumes).find(v => v[name]))[name];
+    const from = map.loads?.[name] ?? map.loads?.[name.replace(/\d$/, '')] ?? file.aux, head = bytes(file.data).subarray(0, 16);
+    const there = () => started() && head.every((v, i) => m.read(from + i) === v);
+    for (const [at, step] of Object.entries(steps)) {
+      const { until, ...event } = typeof step === 'string' ? { step } : step;
+      let given = null;
+      const done = () => { if (!given) return; const e = given; given = null; running.delete(done); s.options.leave?.(e); };
+      chain(m, +at, () => {
+        if (!there() || given) return false;
+        const e = { ...event, inside: true };
+        s.emit(e);
+        if (until !== undefined) { given = e; running.add(done); s.options.enter?.(e, true); }
+        return false;
+      });
+      if (until !== undefined) chain(m, until, () => { done(); return false; });
+    }
+  }
+  return { end: () => { for (const done of [...running]) done(); } };
 }
 
 // A call's event, as its step is defined, with the data the routine takes inline after its call, and the address it

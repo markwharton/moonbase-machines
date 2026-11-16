@@ -4,8 +4,11 @@
 //
 //   rules(core)   the rules, given the observer's core (@moonbase-machines/player/remake/observer.js says what it
 //                 holds). They return what the observer asks of every toolkit's rules: `routines`, `call`, `ended`,
-//                 `left`, `waits` and `ticking`; and what these rules give beside them, which the observer passes on:
-//                 `mark`, `time` and `since`, a key's time, and `problem`, whether a problem is in memory.
+//                 `waits` and `ticking`; and what these rules give beside them, which the observer passes on: `mark`,
+//                 `time` and `since`, a key's time, and `problem`, whether a problem is in memory.
+//
+// The places in the game's code that are steps of the view's (the map's `view`) are the observer's to follow, for
+// every title alike.
 //
 // A hook is a function the processor runs when it reaches an address (`m.cpu.hooks`). It returns false to let the
 // code there run, 'wait' to be run again at the next step, and anything else to return as RTS does.
@@ -55,30 +58,6 @@ export function rules(s) {
     s.options.enter?.(given);
     s.returned(back, r => { left(); s.options.leave?.(given); if (step.gives) inside(result(name, step, r)); });
   };
-
-  // The view's steps (the map's `view`, by the file they are in): places in the game's code where the screen
-  // changes with no routine of the map called, as a part's own code scrolls a picture. Each is an event for the view
-  // when the game reaches it, while its file is in memory. An entry is a step's name, or an event's fields. A step
-  // that runs for a while gives `until`, the address where it is done. It is one event, however many times its code
-  // passes its own address, and `enter` and `leave` are given it as it starts and ends.
-  const origin = name => map.loads?.[name] ?? map.loads?.[name.replace(/\d$/, '')] ?? volume[name].aux;
-  const running = new Set();
-  for (const [name, steps] of s.view ? Object.entries(map.view ?? {}) : []) {
-    const head = bytes(volume[name].data).subarray(0, 16), from = origin(name);
-    const there = () => started() && head.every((v, i) => m.read(from + i) === v);
-    for (const [at, step] of Object.entries(steps)) {
-      const { until, ...event } = typeof step === 'string' ? { step } : step;
-      let given = null;
-      const done = () => { if (!given) return; const e = given; given = null; running.delete(done); s.options.leave?.(e); };
-      chain(m, +at, () => {
-        if (!there() || given) return false;
-        const e = inside(event);
-        if (until !== undefined) { given = e; running.add(done); s.options.enter?.(e, true); }
-        return false;
-      });
-      if (until !== undefined) chain(m, until, () => { done(); return false; });
-    }
-  }
 
   // The jump to the Main Menu (control-E) resets the stack and leaves every routine.
   if (map.menu !== undefined) chain(m, map.menu, () => { if (started() && isIn()) s.leaveAll(); return false; });
@@ -167,8 +146,6 @@ export function rules(s) {
   return {
     routines, call,
     ended: () => { buttoned = false; shown = []; },
-    // a view's step still running when the game leaves every routine is over
-    left: () => { for (const done of [...running]) done(); },
     waits: () => s.depth === 0 || waiting(),
     ticking: () => s.depth > 0 && s.step(s.running).turn ? s.running : null,
     // After a turn, the next key's time runs from the turn's start. The run stopped one instruction past it.
