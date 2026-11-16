@@ -12,7 +12,7 @@
 // its x in dots. A character's ink is undefined before the line's first color: the engine draws
 // that part in the ink the whole line ends with, which is the line's `ink`. A byte below a space
 // is a spacer, a few dots of room and nothing drawn.
-import { width, start } from '@moonbase-machines/vector/font.js';
+import { width, start } from './font.js';
 
 // the screen's layout by $03E3: the window's last row, and the tops of the two boxes below it
 export const LAYOUT = { 0x41: [116, 116, 174], 0x32: [116, 116, 160], 0x31: [130, 130, 174], 0x22: [130, 130, 160], 0x11: [158, 158, 174] };

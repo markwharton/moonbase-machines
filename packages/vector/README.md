@@ -22,6 +22,21 @@ address. The table at the end gives the main ones in both.
 | `inline.js` | the text, picture names and sounds the engine reads from after a call |
 | `steps.js` | `STEPS`, each routine a title's map names as a step, with what it takes and gives and the part it plays; `DRAWS`, the steps whose work is only drawing |
 | `code-files.js` | `codeFiles` gives a game's code files, PART0, the parts and the problems, each with the address it loads at |
+| `toolkit.js` | `toolkit`, the engine as a title made with it brings it to the player (`@moonbase-machines/player`): its steps, its rules, the memory its game runs in, its view, and its pictures drawn over the machine's own screen |
+| `rules.js` | `rules`, how the player's observer follows a game on the engine: when PART0 and each problem are in memory, which calls are the game's, which the view is given, and when the game waits for a key |
+| `view.js` | `View` draws a game's events as SVG, 560 by 384: its pictures from their shapes, its objects from their own dots, and its words as the engine laid them out |
+| `layout.js` | `layout` lays out a text as the text routine does, on the graphics screen; `textLayout` on the text screen; `LAYOUT` and `PANELS`, the screen's layouts and the text panels |
+| `faces.js` | the faces the view draws clean text in, and `fit`, which stretches each word to the width the engine gave it |
+
+A title made with the engine names its toolkit in its `title.js`:
+
+```js
+import { toolkit } from '@moonbase-machines/vector/toolkit.js';
+export default { slug: 'game', engine: 'vector', toolkit, map: { ... } };
+```
+
+The player asks a title's toolkit for each part it uses. The toolkit's rules are given the core of the player's
+observer (`@moonbase-machines/player/remake/observer.js`), so this package imports nothing of the player's.
 
 The sixteen colors, their names and `rgb` are the Apple's own, `@moonbase-machines/apple2e/colors.js`.
 ES modules with nothing else to install, in Node and in the browser. The tests here are made from

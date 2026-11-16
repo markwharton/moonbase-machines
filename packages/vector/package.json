@@ -1,7 +1,7 @@
 {
   "name": "@moonbase-machines/vector",
   "version": "0.21.0",
-  "description": "Mark Wharton's vector graphics engine for the Apple IIe (Animal Rescue, Nature Park Adventure, 1989): its pictures, objects, font and drawing, dot for dot.",
+  "description": "Mark Wharton's vector graphics engine for the Apple IIe (Animal Rescue, Nature Park Adventure, 1989): its pictures, objects, font and drawing, dot for dot, and its rules and its view for the player.",
   "type": "module",
   "license": "MIT",
   "author": "Mark Wharton",
@@ -10,7 +10,8 @@
     "./*": "./*"
   },
   "dependencies": {
-    "@moonbase-machines/apple2e": "0.21.0"
+    "@moonbase-machines/apple2e": "0.21.0",
+    "@moonbase-machines/charset": "0.21.0"
   },
   "scripts": {
     "test": "node --test test/*.test.js",

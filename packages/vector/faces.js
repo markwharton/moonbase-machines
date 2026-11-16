@@ -1,4 +1,4 @@
-// The faces for clean text in every view: Inter for words, JetBrains Mono for a grid of characters. The page serves
+// The faces the view draws clean text in: Inter for words, JetBrains Mono for a grid of characters. The page serves
 // the fonts (Inter 500, 600 and 700; JetBrains Mono 500). Without them, each falls back to a system face.
 //
 //   gridText(x, y, ink)    the attributes of an SVG <text> for one character in a 14 by 16 cell at x, y

@@ -210,6 +210,27 @@ test('no title is named in the packages\' code, only in their comments', () => {
   assert.deepEqual(found, []);
 });
 
+// the player's own code, its comments taken out
+const player = join(packages, 'player');
+const playerCode = () => sources(player).map(f => ({ f: f.slice(player.length + 1), lines: readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, '')).split('\n').map(l => l.replace(/(^|\s)\/\/.*$/, '')) }));
+
+test('the player imports nothing of the vector toolkit\'s package', () => {
+  const found = [];
+  for (const { f, lines } of playerCode()) lines.forEach((c, i) => { if (/@moonbase-machines\/vector/.test(c)) found.push(`${f}:${i + 1}`); });
+  assert.deepEqual(found, []);
+});
+
+test('the player\'s code names no toolkit and none of a toolkit\'s files or addresses, only its comments do', () => {
+  const found = [];
+  for (const { f, lines } of playerCode()) lines.forEach((c, i) => { if (/'vector'|'card'|PART0|PROB|0x[aA][dD]00/.test(c)) found.push(`${f}:${i + 1}`); });
+  assert.deepEqual(found, []);
+});
+
+test('the player does not depend on the vector toolkit\'s package', () => {
+  const pkg = JSON.parse(readFileSync(join(player, 'package.json'), 'utf8'));
+  for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) assert.equal(pkg[kind]?.['@moonbase-machines/vector'], undefined, kind);
+});
+
 test('the command: --help says how it is used and starts nothing; a flag it does not have refused', async () => {
   const { execFileSync } = await import('node:child_process');
   const run = (name, ...args) => { try { return { out: execFileSync('node', [new URL(`../bin/${name}.mjs`, import.meta.url).pathname, ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }), code: 0 }; } catch (e) { return { out: e.stderr, code: e.status }; } };
@@ -340,10 +361,14 @@ test('each engine says which settings it uses, from the title and the game\'s da
   const { uses: original } = await import('@moonbase-machines/player/engines/original.js');
   const { CLEAN_TEXT, MONITOR, MINI, VECTORS } = await import('@moonbase-machines/player/declared.js');
   const names = defs => defs.map(d => d.name);
-  assert.deepEqual(names(remake({ title: { engine: 'vector' }, game: { kind: 'prodos' } })), names([CLEAN_TEXT]), 'a vector title');
-  assert.deepEqual(names(remake({ title: { engine: 'card', text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([CLEAN_TEXT, MONITOR, MINI]), 'a card title with text and a mini view');
-  assert.deepEqual(names(remake({ title: { engine: 'card' }, game: { kind: 'dos33' } })), names([MONITOR]), 'a card title without text');
-  assert.deepEqual(remake({ title: { engine: 'card' }, game: { kind: 'c64' } }), [], 'a Commodore 64 title');
-  assert.deepEqual(names(original({ game: { kind: 'prodos' } })), names([MONITOR, VECTORS]), 'an Apple game');
+  const toolkit = { view: () => null, text: true, overlay: () => () => true };
+  assert.deepEqual(names(remake({ title: { toolkit }, game: { kind: 'prodos' } })), names([CLEAN_TEXT]), 'a title whose toolkit has a view that draws text');
+  assert.deepEqual(names(remake({ title: { toolkit: { view: () => null } }, game: { kind: 'prodos' } })), names([]), 'a title whose toolkit has a view that draws no text');
+  assert.deepEqual(names(remake({ title: { text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([CLEAN_TEXT, MONITOR, MINI]), 'a title with no toolkit, with text and a mini view');
+  assert.deepEqual(names(remake({ title: {}, game: { kind: 'dos33' } })), names([MONITOR]), 'a title with no toolkit, without text');
+  assert.deepEqual(remake({ title: {}, game: { kind: 'c64' } }), [], 'a Commodore 64 title');
+  assert.deepEqual(names(original({ title: { toolkit }, game: { kind: 'prodos' } })), names([MONITOR, VECTORS]), 'an Apple game whose toolkit has an overlay');
+  assert.deepEqual(names(original({ title: {}, game: { kind: 'prodos' } })), names([MONITOR]), 'an Apple game with no toolkit');
+  assert.deepEqual(names(original({ title: null, game: { kind: 'prodos' } })), names([MONITOR]), 'an Apple game with no title');
   assert.deepEqual(original({ game: { kind: 'c64' } }), [], 'a Commodore 64 game');
 });

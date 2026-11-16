@@ -4,8 +4,9 @@
 //
 // It has the surface the page's runner, the views and the pilots drive:
 //
-//   const game = new Game(title, { clock })   title.disk the game's data, title.map its map, title.seed a route's
-//                                             seed; the clock (clock.js), or none to run without one
+//   const game = new Game(title, { clock })   title.disk the game's data, title.map its map, title.toolkit its
+//                                             toolkit where it has one (observer.js), title.seed a route's seed;
+//                                             the clock (clock.js), or none to run without one
 //   game.run()          runs until the game waits for a key ('idle'), ends ('end'), or has run the time its clock
 //                       owes it ('frame')
 //   game.press(key)     a key, as a character code; -1 is none, for a turn that passes with no key
@@ -31,10 +32,11 @@
 // title's map names such a stretch of the game's code as a step of the view's (its `view`, with `until`), and the title
 // does not warp that step. While it runs nothing warps, so the stretch takes the original's time.
 //
-// A wait for a key is the player's time. A routine of the toolkit's that waits for a key runs flat out, so that what it
-// draws to ask is shown at once and its sound plays out while the player decides. When it returns, the time it took
-// since its last key is owed: the game is going on, and that time is the game's. A title's own routine that waits
-// keeps its time, as a loop of the game's own does: it may blink or draw between its reads of the keyboard.
+// A wait for a key is the player's time. A routine that the title's toolkit frees (its game's `frees`, below) runs flat
+// out while it waits for a key, so that what it draws to ask is shown at once and its sound plays out while the player
+// decides. When it returns, the time it took since its last key is owed: the game is going on, and that time is the
+// game's. A title's own routine that waits keeps its time, as a loop of the game's own does: it may blink or draw
+// between its reads of the keyboard.
 import { Machine } from '@moonbase-machines/apple2e/machine.js';
 import { observe, returnTo, stepsOf } from './observer.js';
 import { Clock } from './clock.js';
@@ -46,43 +48,15 @@ const IDLE = 2000;
 // The most cycles a run goes on at warp before it stops for the page to draw.
 const WARP = 4e6;
 
-// What each kind of title adds, by its title.js `engine`: the memory the game runs in, and what its view reads of
-// the game beside the events.
-const KINDS = {
-  // A vector title runs in auxiliary memory, with the language card's second bank at $D000. The card's banks are
-  // placed in the top of the auxiliary 64K, so that one array holds everything the game reads and writes.
-  vector(game) {
-    const m = game.m;
-    m.lc.aux[1] = m.aux.subarray(0xd000, 0xe000); m.lc.aux[2] = m.aux.subarray(0xe000);
-    // An ask (its step's `ask`) takes a key, then waits for RETURN to confirm it or DELETE to take it back. The view
-    // shows which: `askMode` is the ask's mode, its A as it starts, and `asked` the place of the key chosen, or null
-    // while none is. The ask draws the caps of the keys it wants itself. It draws RETURN's cap only once a key is
-    // chosen, so its own call of the routine that draws a cap (`cap`) says a choice has been made. The key is the last
-    // one pressed.
-    const ARROWS = [8, 21, 10, 11];
-    // the title's own routines, by name: those of its problems
-    const own = new Set(Object.values(game.title.map.problems ?? {}).flatMap(r => Object.values(r)).map(full => full.split(' ')[0]));
-    const place = (mode, k) => mode === 0x80 ? ARROWS.indexOf(k) : mode >= 0xb1 && mode < 0xba ? k - 0x31 : (k & 0x5f) - 0x41;
-    // the ask running, by its event
-    let asking = null;
-    game.askMode = 0; game.asked = null;
-    return {
-      mem: m.aux,
-      enter(event) { if (game.steps[event.step]?.ask) { asking = event; game.askMode = event.a; game.asked = null; } },
-      leave(event) { if (event === asking) { asking = null; game.asked = null; } },
-      tap(name, c) { if (asking && game.steps[name]?.cap && c.a !== 0x7f) game.asked = c.a === 0x0d ? { place: place(game.askMode, game.key) } : null; },
-      // The toolkit's routines that wait for a key run flat out (above).
-      frees: event => !!game.steps[event.step]?.waits && !own.has(event.step),
-      // Before the toolkit is in memory the game's loader waits for a key, with its splash on the screen.
-      splash: !!game.title.map.splash,
-    };
-  },
-  // A card title runs in main memory. Its view paints the page the soft switches show.
-  card(game) {
-    game.title.screen = game.m.sw;
-    return { mem: game.m.main };
-  },
-};
+// What a game with no toolkit gets: it runs in main memory, and its view paints the page the soft switches show. A
+// title's toolkit gives its own (its `game(game)`, observer.js). It gives `mem`, the memory the game runs in, and it
+// may give `enter(event)` and `leave(event)`, called as each step starts and ends; `tap(name, c)`, the observer's
+// `tap`; `frees(event)`, whether a routine runs flat out while it waits for a key; and `splash`, whether the game's
+// loader waits for a key before the toolkit is in memory.
+function plain(game) {
+  game.title.screen = game.m.sw;
+  return { mem: game.m.main };
+}
 
 export class Game {
   constructor(title, { clock = new Clock({ scale: 0 }) } = {}) {
@@ -102,13 +76,14 @@ export class Game {
     this.took = new WeakMap();
     // the game's files, for what it saves and for a disk taken out of its drive
     title.files = m.disk;
-    this.steps = stepsOf(title.engine, title.map);
-    const kind = this.kind = KINDS[title.engine](this);
+    this.steps = stepsOf(title);
+    // what the title's toolkit adds to the game, or the plain game's
+    const kind = this.kind = (title.toolkit?.game ?? plain)(this);
     this.mem = kind.mem;
     // each step running: the cycle it started at, and whether the clock warped before it
     const starts = new WeakMap();
     this.observer = observe(m, title.map, {
-      kind: title.engine, game: title.disk, seed: () => title.seed, view: true,
+      toolkit: title.toolkit, game: title.disk, seed: () => title.seed, view: true,
       emit: event => { this.begun = true; this.emit(event); },
       enter: (event, span) => {
         starts.set(event, { from: m.cpu.cycles, warp: clock.warp });

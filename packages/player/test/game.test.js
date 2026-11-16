@@ -1,10 +1,12 @@
 // A game on its machine (remake/game.js): the machine runs the game's own code, and the observer gives its events, as
-// the engine the player drives. A small game of each kind stands in for a title's.
+// the engine the player drives. A small game stands in for a title's: a card game with no toolkit, and a vector game on
+// the vector toolkit.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble } from '@moonbase-machines/mos6502/asm.js';
 import { Game } from '../remake/game.js';
 import { Clock, FRAME } from '../remake/clock.js';
+import { toolkit } from '@moonbase-machines/vector/toolkit.js';
 
 const b64 = bytes => btoa(String.fromCharCode(...bytes));
 // A ProDOS game whose system file is `system`, with the other files given.
@@ -51,7 +53,7 @@ take:     LDA $C000
 const STEPS = { arrow: { takes: 'a' }, unpack: { takes: 'y' }, take: { takes: 'y', gives: 'a', waits: true } };
 const cardGame = () => {
   const a = name => CARD.symbols.get(name);
-  const game = new Game({ engine: 'card', disk: disk(CARD.bytes), map: { routines: { [a('arrow')]: 'arrow', [a('unpack')]: 'unpack', [a('take')]: 'take' }, steps: STEPS } });
+  const game = new Game({ disk: disk(CARD.bytes), map: { routines: { [a('arrow')]: 'arrow', [a('unpack')]: 'unpack', [a('take')]: 'take' }, steps: STEPS } });
   const events = [];
   game.on(e => events.push(e));
   return { game, events };
@@ -128,7 +130,7 @@ const nearWait = (a, b) => assert.ok(Math.abs(a - b) <= 4 / CYCLES_PER_MS + 1e-9
 const timedGame = (entry, { clock, warp } = {}) => {
   const program = timed(entry), a = name => program.symbols.get(name);
   const map = { routines: { [a('long')]: 'unpack', [a('take')]: 'take' }, steps: STEPS };
-  const game = new Game({ engine: 'card', disk: disk(program.bytes), map, warp }, clock ? { clock } : {});
+  const game = new Game({ disk: disk(program.bytes), map, warp }, clock ? { clock } : {});
   const events = [];
   game.on(e => events.push(e));
   return { game, events };
@@ -200,8 +202,8 @@ const SCENE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 test('a card game stops at a turn of its own loop, and goes on with no key', () => {
   const a = name => TURN.symbols.get(name);
   const files = { SCENE: { type: 'BIN', aux: 0xad00, size: SCENE.length, data: b64(SCENE) } };
-  const map = { routines: { [a('take')]: 'take' }, steps: STEPS, ticks: [{ at: a('turn'), scene: 'SCENE', step: 'tick' }] };
-  const game = new Game({ engine: 'card', disk: disk(TURN.bytes, files), map });
+  const map = { routines: { [a('take')]: 'take' }, steps: STEPS, ticks: [{ at: a('turn'), scene: 'SCENE', loads: 0xad00, step: 'tick' }] };
+  const game = new Game({ disk: disk(TURN.bytes, files), map });
   game.m.main.set(SCENE, 0xad00);
   const events = [];
   game.on(e => events.push(e));
@@ -234,7 +236,7 @@ test('a routine answered by a hook that counts its own cycles spends all of its 
   const map = { routines: { 0xfca8: 'pause', [PAUSE.symbols.get('take')]: 'take' }, steps: STEPS };
   const clock = new Clock();
   clock.tick(50);
-  const game = new Game({ engine: 'card', disk: disk(PAUSE.bytes), map }, { clock });
+  const game = new Game({ disk: disk(PAUSE.bytes), map }, { clock });
   const events = [];
   game.on(e => events.push(e));
   const start = game.cycles;
@@ -332,7 +334,7 @@ const vectorGame = ({ splash = false, scene = ASKS, warp, clock } = {}) => {
     view: { PROB1: { [a('wave')]: { step: 'wave', until: a('waved') } } },
     ...splash ? { splash: true } : {},
   };
-  const game = new Game({ engine: 'vector', disk: disk(image.slice(0x2000, a('sysend')), files), map, warp }, clock ? { clock } : {});
+  const game = new Game({ toolkit, disk: disk(image.slice(0x2000, a('sysend')), files), map, warp }, clock ? { clock } : {});
   // The scene, the toolkit and the problem go into auxiliary memory, as the game's loader puts them there. The system
   // file is there too, so that the processor goes on after the switch.
   const load = () => { for (const [from, to] of [[0x0800, a('sceneend')], [0x2000, a('sysend')], [0x4000, a('kitend')], [0x6000, 0x6020]]) game.m.aux.set(image.subarray(from, to), from); };

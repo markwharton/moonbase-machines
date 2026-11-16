@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { CPU } from '@moonbase-machines/mos6502/cpu.js';
 import { assemble } from '@moonbase-machines/mos6502/asm.js';
 import { observe, returnTo, chain, once } from '../remake/observer.js';
+import { toolkit } from '@moonbase-machines/vector/toolkit.js';
 
 const b64 = bytes => btoa(String.fromCharCode(...bytes));
 // As much of a machine as the observer uses: 64K of memory, which is also the auxiliary memory the vector toolkit
@@ -145,7 +146,7 @@ const vectorTitle = ({ steps = {}, ...options } = {}) => {
     view: { SCROLL: { [a('scroll')]: 'shift-down', [a('loop')]: { step: 'scroll', until: a('loopend') } } },
   };
   const events = [];
-  const o = observe(m, map, { kind: 'vector', game, emit: e => events.push(e), ...options });
+  const o = observe(m, map, { toolkit, game, emit: e => events.push(e), ...options });
   return { m, o, events, a };
 };
 
@@ -330,12 +331,12 @@ test('a routine that has called the one that draws the space bar\'s button waits
   assert.ok(o.waits());
 });
 
-// A card title's scene and toolkit. The print routine returns past its text, which ends in a zero. The drop routine
-// calls the restart, which goes on as the game and never returns. The key reader gives a key at once. The wipe calls
-// the take. The arrow runs on into the effect. The action cards call an entry of a table of jumps, which goes on to
-// the routine's own code. The text card jumps to an entry of another library's table, and the picture jumps to that
-// library's routine itself. The stir calls the take. A turn of the scene's own loop stops at `turn`, while the scene's
-// first bytes are at $AD00.
+// A card title's scene and its library of routines, observed with no toolkit given: the plain rules. The print routine
+// returns past its text, which ends in a zero. The drop routine calls the restart, which goes on as the game and never
+// returns. The key reader gives a key at once. The wipe calls the take. The arrow runs on into the effect. The action
+// cards call an entry of a table of jumps, which goes on to the routine's own code. The text card jumps to an entry of
+// another library's table, and the picture jumps to that library's routine itself. The stir calls the take. A turn of
+// the scene's own loop stops at `turn`, while the scene's first bytes are where the tick says it loads, $AD00.
 const CARD = assemble(`
 *= $0300
 calls:    LDA #4
@@ -429,10 +430,10 @@ const cardTitle = (options = {}) => {
     },
     steps: CARD_STEPS,
     stir: { from: a('stirs'), to: a('stirdone') - 1, done: a('stirdone'), counts: [] },
-    ticks: [{ at: a('turn'), scene: 'SCENE', step: 'tick' }],
+    ticks: [{ at: a('turn'), scene: 'SCENE', loads: 0xad00, step: 'tick' }],
   };
   const game = { volumes: { DISK: { SCENE: { data: b64(m.mem.slice(0xad00, 0xad10)) } } } };
-  const o = observe(m, map, { kind: 'card', game, emit: e => events.push(e), ...options });
+  const o = observe(m, map, { game, emit: e => events.push(e), ...options });
   return { m, o, events, a };
 };
 

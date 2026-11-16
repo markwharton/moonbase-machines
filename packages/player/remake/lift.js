@@ -52,7 +52,7 @@ export function lift(bytes, origin, entries, routines, stops = new Set(), steps 
         for (const k in regs) delete regs[k];
         stop = true;
       }
-      else if (op.name === 'JMP' && op.mode === 'abs') { if (inFile(word)) { targets.add(word); queue.push(word); } else line += '   ; into PART0'; stop = true; }
+      else if (op.name === 'JMP' && op.mode === 'abs') { if (inFile(word)) { targets.add(word); queue.push(word); } else line += '   ; out of the file'; stop = true; }
       else if (op.name === 'JMP' || op.name === 'RTS' || op.name === 'RTI' || op.name === 'BRK') stop = true;
       else if (op.mode === 'rel') { const t = (pc + 2 + (bytes[at + 1] << 24 >> 24)) & 0xffff; targets.add(t); queue.push(t); }
       // a table of addresses, read low byte then high byte, LDA t,X or t,Y and then LDA t+1 the same

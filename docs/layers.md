@@ -106,9 +106,11 @@ flowchart LR
 
 How the Remake shows the game depends on the title:
 
-- **A vector title** has its pictures drawn from their shapes as SVG, at any size, and its words in a modern face.
-- **A card title** on the Apple IIe has the machine's own screen, the hi-res page dot for dot, with its words
-  painted again in one colour where the title says how to find them.
+- **A title made with a toolkit** brings the toolkit in its driver, its `title.js`, and the toolkit's view draws the game. A
+  vector title brings the vector toolkit (`@moonbase-machines/vector`), which draws its pictures from their shapes as
+  SVG, at any size, and its words in a modern face. The player's own code names no toolkit.
+- **A title with no toolkit** on the Apple IIe has the machine's own screen, the hi-res page dot for dot, with its
+  words painted again in one colour where the title says how to find them.
 - **A Commodore 64 title** is the 64 itself, on Moonbase's ROMs, with no view of its own. Its Remake can have the
   game's bugs fixed: the fixes are made to its program on the disk.
 - **A title of its own engine** has no machine. Its program's engine is written again routine for routine, and

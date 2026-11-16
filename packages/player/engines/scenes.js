@@ -1,12 +1,12 @@
-// The Remake's engine for an Apple title, 'card' or 'vector' (play.js hands it the game). The game runs on its
-// machine (remake/game.js), and a view on the stage draws its events: CardView paints a card title's hi-res page, and
-// View draws a vector title's pictures and text. A Commodore 64 title's Remake is the 64 itself, which the Original's
-// engine plays (engines/original.js).
+// The Remake's engine for an Apple title (play.js hands it the game). The game runs on its machine (remake/game.js),
+// and a view on the stage draws its events: the view of the title's toolkit, where it has one (its `view`,
+// remake/observer.js), or the plain view, CardView, which paints the machine's screen. A Commodore 64 title's Remake is
+// the 64 itself, which the Original's engine plays (engines/original.js).
 //
-// The settings it acts on (play.js `game.setting`) are Clean text, where the view draws clean text (View, and
-// CardView for a title with `text`); the monitor, where the view paints the Apple's screen (CardView); and the mini
-// view, where the page gives one and the title has a place for it. The game runs on the original's time, on one
-// clock (below).
+// The settings it acts on (play.js `game.setting`) are Clean text, where the view draws clean text (a toolkit's view
+// that says `text`, and CardView for a title with `text`); the monitor, where the view paints the Apple's screen
+// (CardView); and the mini view, where the page gives one and the title has a place for it. The game runs on the
+// original's time, on one clock (below).
 import { makeEngine } from '../remake/load.js';
 
 // The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
@@ -14,23 +14,23 @@ import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
 import { clock, Clock, toWait } from '../remake/clock.js';
-import { View } from '../remake/view.js';
 import { CardView } from '../remake/card-view.js';
 
 // The settings this engine acts on for a game (play.js `using`): Clean text where its view draws text of its own, the
-// monitor for a card title's Apple screen, and the mini view where the page gives one and the title has a place for it.
-// A Commodore 64 title's Remake is played by the Original's engine, which acts on none of these.
+// monitor for the plain view's Apple screen, and the mini view where the page gives one and the title has a place for
+// it. A Commodore 64 title's Remake is played by the Original's engine, which acts on none of these.
 export function uses({ title, game, mini }) {
   if (game.kind === 'c64') return [];
-  const card = title.engine === 'card';
-  return [...(!card || title.text ? [CLEAN_TEXT] : []), ...(card ? [MONITOR] : []), ...(title.inset && mini ? [MINI] : [])];
+  const plain = !title.toolkit?.view;
+  return [...(title.toolkit?.text || title.text ? [CLEAN_TEXT] : []), ...(plain ? [MONITOR] : []), ...(title.inset && mini ? [MINI] : [])];
 }
 
 export async function play(g) {
   const { title, game: disk, stage, say, fail, saves, $ } = g;
   if (disk.kind === 'c64') return (await import('./original.js')).play(g, { remake: true });
   stage.innerHTML = `<svg id="screen" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-label="The game's screen"></svg>`;
-  const svg = $('screen'), card = title.engine === 'card';
+  // the toolkit's view, or the plain view where the title has no toolkit or its toolkit no view
+  const svg = $('screen'), plain = !title.toolkit?.view;
 
   // its view's own drawing, for a title that has one (its title.js `view`, load.js)
   const extra = title.viewSteps ?? {};
@@ -40,14 +40,17 @@ export async function play(g) {
   if (title.files) saves.keep(title.files);
   const queue = [];
   // The view, and every event it has drawn. When Clean text is turned on or off, the events are drawn again from
-  // the start. The setting is offered only where the view draws text of its own: a vector title (View), or a card
-  // title whose title.js has `text` (CardView). The other views draw the machine's own screen.
+  // the start. The setting is offered only where the view draws text of its own: a toolkit's view that says `text`, or
+  // the plain view for a title whose title.js has `text` (CardView). The other views draw the machine's own screen.
   const history = [];
-  const cleanText = !card || title.text ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
+  const cleanText = title.toolkit?.text || title.text ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
   // The monitor, offered where the view paints the Apple's screen (CardView). A change paints the screen again at once.
-  const monitor = card ? g.setting(MONITOR) : { value: MONITOR.default, on() { return this; } };
+  const monitor = plain ? g.setting(MONITOR) : { value: MONITOR.default, on() { return this; } };
   let onView = null;   // (the mini view's, given each view made)
-  const makeView = () => { svg.replaceChildren(); const v = card ? new CardView(svg, { engine, inset: g.mini ? title.inset : null }) : new View(svg, { disk, volume: Object.keys(disk.volumes)[0], engine, extra }); v.cleanText = cleanText.value; v.monitor = monitor.value; onView?.(v); return v; };
+  // (each view is given the engine, the game's data, the title's own drawing and the mini view's place, and takes what
+  // it uses of them)
+  const options = { engine, disk, extra, inset: g.mini ? title.inset : null };
+  const makeView = () => { svg.replaceChildren(); const v = plain ? new CardView(svg, options) : title.toolkit.view(svg, options); v.cleanText = cleanText.value; v.monitor = monitor.value; onView?.(v); return v; };
   let view = makeView();
   monitor.on(value => { view.monitor = value; view.prompts(); });
   engine.on(e => queue.push([e, view.snapshot({ ...e })]));

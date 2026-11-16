@@ -61,7 +61,8 @@ import { paperBox, phoneKeys, statusLine, KEYS_MARKUP } from './parts.js';
 
 // each machine's screen, in its own dots: an Apple's hi-res page, a Commodore 64's frame, border and all
 const SCREENS = { prodos: [280, 192], dos33: [280, 192], c64: [384, 272] };
-const ENGINES = { original: () => import('./engines/original.js'), card: () => import('./engines/scenes.js'), vector: () => import('./engines/scenes.js') };
+// the engines, by the way: the Original's, and the Remake's for a title that runs on its machine
+const ENGINES = { original: () => import('./engines/original.js'), remake: () => import('./engines/scenes.js') };
 // The settings the player acts on itself (declared.js): the speaker, a Commodore 64's printer, and a title's version
 // with its bugs fixed. The page places their controls, from `using`; the player draws none.
 import { SOUND, PRINTER, FIXED } from './declared.js';
@@ -122,7 +123,7 @@ export async function play(options) {
     // The settings this game uses: the player's own (the speaker, a Commodore 64 game's printer, and the title's version
     // with its bugs fixed where it has one) and its engine's (its `uses`). The page hears them before the game runs,
     // to place their controls.
-    const engine = way === 'original' ? await ENGINES.original() : title.own ?? await ENGINES[title.engine]();
+    const engine = way === 'original' ? await ENGINES.original() : title.own ?? await ENGINES.remake();
     used = [SOUND, ...(kind === 'c64' ? [PRINTER] : []), ...(way === 'remake' && title?.fixed ? [FIXED] : []), ...(engine.uses?.(g) ?? [])];
     options.using?.(used);
     // a printer on device 4, for a Commodore 64 game: on unless the setting is off, what it prints drawn below the

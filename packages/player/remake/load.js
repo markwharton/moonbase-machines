@@ -9,14 +9,11 @@
 //   title.disk = disk; title.seed = 17                 (the caller's: a data disk, the seed)
 //   const engine = makeEngine(title, { clock })
 //
-// A title whose title.js `engine` is 'card' or 'vector' runs its game on its machine: makeEngine gives the game
-// (game.js), with the clock it is given (clock.js). A title whose engine is its own names a module in its folder as
-// its `engine`. That module is loaded as `title.own`, with no game's data read here, and it plays the game itself
-// (play.js).
+// A title whose title.js has a map of the routines its code calls (`map.routines`) runs its game on its machine:
+// makeEngine gives the game (game.js), with the clock it is given (clock.js). Any other title is one of its own
+// engine, and names a module in its folder as its `engine`. That module is loaded as `title.own`, with no game's data
+// read here, and it plays the game itself (play.js).
 import { Game } from './game.js';
-
-// the engines a title's game can run on, by its title.js `engine`; any other engine is the title's own
-const MACHINES = new Set(['card', 'vector']);
 
 // A file is read by fetch in the browser, and from the disk in Node. Node's fs is asked of Node itself, so that the
 // browser's files import nothing of Node's.
@@ -41,7 +38,7 @@ export async function titleOf(folder) {
 export async function loadTitle(folder, { data } = {}) {
   folder = new URL(folder);
   const title = await titleOf(folder);
-  if (!MACHINES.has(title.engine)) {
+  if (!title.map?.routines) {
     title.own = await import(new URL(title.engine + '.js', folder).href);
     return { title, disk: null, folder };
   }

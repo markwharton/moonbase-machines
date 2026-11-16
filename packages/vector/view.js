@@ -6,11 +6,11 @@
 // The screen is kept as the original painted it: each thing drawn covers some rows, and a
 // window, a box, a panel or a fill that paints over those rows takes away what was there.
 import { COLORS, rgb } from '@moonbase-machines/apple2e/colors.js';
-import { pictures } from '@moonbase-machines/vector/pictures.js';
-import { tables, put } from '@moonbase-machines/vector/objects.js';
-import { codeFiles } from '@moonbase-machines/vector/code-files.js';
-import { elements } from '@moonbase-machines/vector/svg.js';
-import { width, dots, useFont } from '@moonbase-machines/vector/font.js';
+import { pictures } from './pictures.js';
+import { tables, put } from './objects.js';
+import { codeFiles } from './code-files.js';
+import { elements } from './svg.js';
+import { width, dots, useFont } from './font.js';
 import { layout, resolve, LAYOUT, PANELS, textLayout, textPen, textPage } from './layout.js';
 import { FONT } from '@moonbase-machines/charset/font.js';
 import { colors } from '@moonbase-machines/apple2e/screen.js';
@@ -19,7 +19,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const X = x => x * 4, Y = y => y * 2;
 // A row of the engine's words: its baseline is 7 dots below its top, or 15 for tall words.
 const BASELINE = 7, TALL_BASELINE = 15;
-// (the faces of every remake's clean text, faces.js: Inter, and JetBrains Mono for the text screen's grid)
+// (the faces of the clean text, faces.js: Inter, and JetBrains Mono for the text screen's grid)
 import { WORDS as SANS, gridText, fit, fitWhenLoaded } from './faces.js';
 
 // The characters are the title's own. There was no Unicode in 1986: the engine's font has its

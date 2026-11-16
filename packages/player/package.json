@@ -16,8 +16,7 @@
     "@moonbase-machines/apple2e": "0.21.0",
     "@moonbase-machines/c64": "0.21.0",
     "@moonbase-machines/charset": "0.21.0",
-    "@moonbase-machines/mos6502": "0.21.0",
-    "@moonbase-machines/vector": "0.21.0"
+    "@moonbase-machines/mos6502": "0.21.0"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
