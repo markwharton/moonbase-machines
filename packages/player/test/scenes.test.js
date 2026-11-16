@@ -68,3 +68,19 @@ test('a view\'s claim takes a key before the game does, and its press gives the 
   press(0x42);
   assert.deepEqual(game.keys, [0x41, 0x42], 'B given by the view');
 });
+
+test('the Speed setting says whether the title is asked what warps: Turbo asks, Original does not', async () => {
+  const { SPEED } = await import('../declared.js');
+  let change = null;
+  const stage = { stage: true }, control = () => {};
+  const setting = def => ({ value: def.default, on(f) { if (def === SPEED) change = f; return this; } });
+  const g = { title: { map, warp: () => true, view: () => ({}) }, game: disk, stage, saves: { data: disk, keep() {} }, say() {}, fail: err => { throw err; }, setting, control, mini: null, pace: () => 1 };
+  const { engine: game } = await play(g);
+  assert.equal(SPEED.default, 'turbo');
+  assert.equal(game.turbo, true, 'Turbo to begin with');
+  change('original');
+  assert.equal(game.turbo, false);
+  assert.equal(game.warps({ step: 'take' }), false, 'on Original no step warps');
+  change('turbo');
+  assert.equal(game.warps({ step: 'take' }), true);
+});

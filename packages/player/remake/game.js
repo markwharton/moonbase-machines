@@ -21,6 +21,8 @@
 //   game.took           each outermost step's event to the time its routine took, in milliseconds
 //   game.untimed        the stretches of cycles that ran at warp, for the speaker to leave out
 //   game.turning        whether the game is in a loop that takes a key each turn without waiting
+//   game.turbo          whether the engine asks the title which steps warp at all: true unless it is set false, as the
+//                       player's Speed setting sets it for Original
 //   game.observer       the observer: its depth, the routine running, a key's time
 //
 // Time. The machine counts the game's time in cycles. The clock says how much of it the page owes, and the run
@@ -32,6 +34,8 @@
 //   the drive took.
 // - The game's own code, which runs while no routine or stretch does, is a step named `game`. The engine asks about
 //   it as each run starts and as each outermost step ends.
+// The engine asks none of this while `game.turbo` is false: then nothing warps, and the game runs at the original's
+// speed throughout.
 // A title that warps the game's own code is still asked about each routine afresh, so a routine it does not warp keeps
 // its time, a sound or a pause among them. A title with no `warp` plays at the original's speed throughout. The cycles
 // that run at warp are untimed (`untimed`), and the speaker leaves them out.
@@ -74,6 +78,8 @@ export class Game {
     this.listeners = []; this.takers = []; this.keys = [];
     this.ended = false; this.timed = true; this.waitingOn = null;
     this.untimed = []; this.turning = false; this.framed = false; this.polled = null;
+    // whether the title is asked which steps warp (the header's `game.turbo`)
+    this.turbo = true;
     // the routine running that waits for a key, with the cycle of its start or of its last key
     this.waiter = null;
     // the view's step running that keeps its time: nothing inside it warps
@@ -147,8 +153,8 @@ export class Game {
   emit(event) { for (const f of this.listeners) f(event); }
   onKey(f) { this.takers.push(f); return () => { this.takers = this.takers.filter(g => g !== f); }; }
   press(key) { this.keys.push(key); }
-  // whether a step runs at warp: the title says (its title.js `warp`)
-  warps(step) { return !!this.title.warp?.(step, this); }
+  // whether a step runs at warp: the title says (its title.js `warp`), where it is asked at all (`turbo`)
+  warps(step) { return this.turbo && !!this.title.warp?.(step, this); }
   // The game's own code: the code that runs while no step runs. The title says whether it warps, as a step named
   // `game`. While no step runs, the clock's warp is the title's answer. A stretch of it at warp is begun here.
   own() {

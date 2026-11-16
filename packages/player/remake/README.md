@@ -181,6 +181,30 @@ warp it, nothing inside it warps: a game whose pace is its drawing keeps the ori
 warp: step => DRAWS.includes(step.step) || step.step === 'disk'
 ```
 
+### Speed
+
+Speed is the player's setting for a Remake (`declared.js` `SPEED`): Original or Turbo. It decides whether the engine
+asks the title's `warp` at all (`game.turbo`). The title still decides what warps.
+
+- **Turbo**, where it starts: the engine asks the title about each step, and runs flat out through those the title
+  says yes to.
+- **Original**: the engine asks nothing. Nothing warps, and the game runs at the original's speed throughout.
+
+Two rules hold for steps inside steps, on Turbo:
+
+- Inside a step that warps, everything warps.
+- Inside a stretch of the game's code that the map names and the title does not warp, nothing warps.
+
+So a title can skip the time its pictures take to draw and still keep an animation whose pace is its drawing. It
+names the animation's stretch of code in its map, and leaves that step out of what it warps.
+
+| | A picture drawn elsewhere | An animation the title names and does not warp | Sounds and pauses |
+|---|---|---|---|
+| Turbo | at once | the original's time | the original's time |
+| Original | the original's time | the original's time | the original's time |
+
+The setting is offered for a title whose `title.js` has a `warp`.
+
 A routine that the title's toolkit frees (its game's `frees`) runs flat out while it waits for a key, so that what it
 draws to ask is shown at once. When it returns, the time it took since its last key is owed. The cycles that ran at
 warp stay the machine's, so the pilots hold the same cycles and clicks whatever the clock did; the speaker leaves them

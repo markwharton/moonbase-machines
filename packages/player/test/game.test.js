@@ -166,6 +166,17 @@ test('a step the title warps spends nothing of the time owed, and its cycles are
   nearWait(clock.owed, FRAME - ((game.cycles - start) - (to - from)) / CYCLES_PER_MS);
 });
 
+test('with turbo off the title is not asked what warps, and a step it would warp spends its time', () => {
+  const asked = [];
+  const clock = aFrame(), { game } = timedGame('longs', { clock, warp: step => { asked.push(step.step); return true; } });
+  game.turbo = false;
+  const from = game.cycles;
+  assert.equal(game.run(), 'frame', 'the frame\'s time is spent inside the step');
+  assert.deepEqual(asked, []);
+  assert.deepEqual(game.untimed, []);
+  near(clock.owed, FRAME - (game.cycles - from) / CYCLES_PER_MS);
+});
+
 test('a step the title does not warp spends its cycles at the original\'s speed', () => {
   const clock = aFrame(), { game } = timedGame('longs', { clock, warp: () => false });
   const from = game.cycles;

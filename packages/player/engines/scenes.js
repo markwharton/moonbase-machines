@@ -28,7 +28,7 @@
 import { makeEngine } from '../remake/load.js';
 
 // The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
-import { CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
+import { SPEED, CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
 import { clock, Clock, toWait } from '../remake/clock.js';
@@ -55,13 +55,14 @@ function screenIn(stage) {
   return svg;
 }
 
-// The settings this engine acts on for a game (play.js `using`): Clean text where its view draws text of its own, the
+// The settings this engine acts on for a game (play.js `using`): the speed where the title says what warps (its
+// title.js `warp`), Clean text where its view draws text of its own, the
 // monitor for the plain view's Apple screen, and the mini view where the page gives one and the title has a place for
 // it in the plain view. A Commodore 64 title's Remake is played by the Original's engine, which acts on none of these.
 export function uses({ title, game, mini }) {
   if (game.kind === 'c64') return [];
   const view = viewOf(title), plain = view === plainView;
-  return [...(cleanOf(title, view) ? [CLEAN_TEXT] : []), ...(plain ? [MONITOR] : []), ...(plain && title.inset && mini ? [MINI] : [])];
+  return [...(title.warp ? [SPEED] : []), ...(cleanOf(title, view) ? [CLEAN_TEXT] : []), ...(plain ? [MONITOR] : []), ...(plain && title.inset && mini ? [MINI] : [])];
 }
 
 export async function play(g) {
@@ -95,6 +96,13 @@ export async function play(g) {
   // that says `text`, or the plain view for a title whose title.js has `text` (CardView). The other views draw the
   // machine's own screen, or read the settings their driver declares.
   const history = [];
+  // The speed, offered where the title says what warps. On Turbo the engine asks the title which steps warp. On
+  // Original it asks nothing, from the next step on.
+  if (title.warp) {
+    const speed = g.setting(SPEED);
+    engine.turbo = speed.value === 'turbo';
+    speed.on(value => { engine.turbo = value === 'turbo'; });
+  }
   const cleanText = cleanOf(title, make) ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
   // The monitor, offered where the view paints the Apple's screen (CardView). A change paints the screen again at once.
   const monitor = plain ? g.setting(MONITOR) : { value: MONITOR.default, on() { return this; } };
