@@ -84,3 +84,26 @@ test('the Speed setting says whether the title is asked what warps: Turbo asks, 
   change('turbo');
   assert.equal(game.warps({ step: 'take' }), true);
 });
+
+test('a monochrome monitor is a filter over a view that does not paint it, and the view that paints it has none', async () => {
+  const { monitorMatrix } = await import('../engines/scenes.js');
+  const { MONITOR } = await import('../declared.js');
+  // (white: every colour its brightness, the same in red, green and blue)
+  assert.equal(monitorMatrix([255, 255, 255]), '0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0 0 0 1 0');
+  // (a stage with as much of a page as the filter asks for, and the Monitor setting on Green)
+  const stageOf = () => { const stage = { style: {}, held: [], querySelector: () => stage.held[0] ?? null, append(el) { stage.held.push(el); } }; return stage; };
+  globalThis.document = { createElementNS: () => ({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }) };
+  const green = def => ({ value: def === MONITOR ? 'green' : def.default, on() { return this; } });
+  const playOn = (stage, title) => play({ title: { map, ...title }, game: disk, stage, saves: { data: disk, keep() {} }, say() {}, fail: err => { throw err; }, setting: green, control() {}, mini: null, pace: () => 1 });
+  const own = stageOf();
+  await playOn(own, { view: () => ({}) });
+  assert.equal(own.style.filter, 'url(#monitor-green)');
+  assert.equal(own.held.length, 1, 'the filters, kept in the stage');
+  for (const name of Object.keys(MONITOR.phosphors)) assert.ok(own.held[0].innerHTML.includes(`<filter id="monitor-${name}"`), name);
+  const painted = stageOf();
+  let view = null;
+  await playOn(painted, { view: () => (view = { paintsMonitor: true }) });
+  assert.equal(painted.style.filter, undefined, 'no filter over a view that paints the monitor');
+  assert.equal(view.monitor, 'green', 'the view is given the monitor to paint');
+  delete globalThis.document;
+});

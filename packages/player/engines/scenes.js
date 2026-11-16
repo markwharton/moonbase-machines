@@ -19,15 +19,15 @@
 //   apply(e)        an event drawn
 //   prompts()       what the view shows while the game waits, drawn after each frame's events
 //   claim(k)        true to take a key before the game does
+//   paintsMonitor   true where the view paints the monitor itself, from its `monitor`, the Monitor setting's value
 //
-// The settings this engine acts on (play.js `game.setting`) are Clean text, where the toolkit's view or the plain view
-// draws clean text (a toolkit that says `text`, and CardView for a title with `text`); the monitor, where the plain
-// view paints the Apple's screen; and the mini view, where the page gives one and the title has a place for it in the
-// plain view. A driver's own view reads the settings the driver declares (its `settings`, play.js). The game runs on the
-// original's time, on one clock (below).
+// The settings this engine acts on (play.js `game.setting`) are the speed, where the title says what warps; Clean
+// text, where the toolkit's view or the plain view draws clean text (a toolkit that says `text`, and CardView for a
+// title with `text`); the monitor; and the mini view, where the page gives one and the title has a place for it in
+// the plain view. A driver's own view reads the settings the driver declares (its `settings`, play.js). The game runs
+// on the original's time, on one clock (below).
 import { makeEngine } from '../remake/load.js';
 
-// The settings this engine acts on (play.js `setting`): Clean text, the monitor and the mini view.
 import { SPEED, CLEAN_TEXT, MONITOR, MINI } from '../declared.js';
 import { Speaker } from '../audio.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
@@ -55,14 +55,31 @@ function screenIn(stage) {
   return svg;
 }
 
+// A monochrome monitor's filter, as the values of an SVG colour matrix: each colour becomes its brightness in the
+// colour `ink` of the monitor's phosphor, [red, green, blue].
+export const monitorMatrix = ink => [...ink.map(c => [0.299, 0.587, 0.114].map(w => +(w * c / 255).toFixed(4)).join(' ') + ' 0 0'), '0 0 0 1 0'].join(' ');
+
+// The monitor over a view that does not paint it itself: a filter on the stage for a monochrome monitor, one for each
+// phosphor, kept in the stage. Colour takes the filter off.
+function monitorOver(stage, value) {
+  if (!MONITOR.phosphors[value]) { if (stage.style?.filter) stage.style.filter = ''; return; }
+  if (!stage.querySelector('#monitors')) {
+    const svg = document.createElementNS(NS, 'svg');
+    for (const [k, v] of Object.entries({ id: 'monitors', width: 0, height: 0, 'aria-hidden': 'true', style: 'position: absolute' })) svg.setAttribute(k, v);
+    svg.innerHTML = Object.entries(MONITOR.phosphors).map(([name, ink]) => `<filter id="monitor-${name}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${monitorMatrix(ink)}"/></filter>`).join('');
+    stage.append(svg);
+  }
+  stage.style.filter = `url(#monitor-${value})`;
+}
+
 // The settings this engine acts on for a game (play.js `using`): the speed where the title says what warps (its
-// title.js `warp`), Clean text where its view draws text of its own, the
-// monitor for the plain view's Apple screen, and the mini view where the page gives one and the title has a place for
-// it in the plain view. A Commodore 64 title's Remake is played by the Original's engine, which acts on none of these.
+// title.js `warp`), Clean text where its view draws text of its own, the monitor, and the mini view where the page
+// gives one and the title has a place for it in the plain view. A Commodore 64 title's Remake is played by the
+// Original's engine, which acts on the monitor.
 export function uses({ title, game, mini }) {
-  if (game.kind === 'c64') return [];
+  if (game.kind === 'c64') return [MONITOR];
   const view = viewOf(title), plain = view === plainView;
-  return [...(title.warp ? [SPEED] : []), ...(cleanOf(title, view) ? [CLEAN_TEXT] : []), ...(plain ? [MONITOR] : []), ...(plain && title.inset && mini ? [MINI] : [])];
+  return [...(title.warp ? [SPEED] : []), ...(cleanOf(title, view) ? [CLEAN_TEXT] : []), MONITOR, ...(plain && title.inset && mini ? [MINI] : [])];
 }
 
 export async function play(g) {
@@ -104,14 +121,16 @@ export async function play(g) {
     speed.on(value => { engine.turbo = value === 'turbo'; });
   }
   const cleanText = cleanOf(title, make) ? g.setting(CLEAN_TEXT) : { value: false, on() { return this; } };
-  // The monitor, offered where the view paints the Apple's screen (CardView). A change paints the screen again at once.
-  const monitor = plain ? g.setting(MONITOR) : { value: MONITOR.default, on() { return this; } };
+  // The monitor. A view that paints it itself (its `paintsMonitor`, as CardView does) is given the setting's value, and
+  // a change paints the screen again at once. Any other view is shown through a filter on the stage.
+  const monitor = g.setting(MONITOR);
+  const showMonitor = v => { v.monitor = monitor.value; if (!v.paintsMonitor) monitorOver(stage, monitor.value); };
   let onView = null;   // (the mini view's, given each view made)
   // (each view is given the stage and these, and takes what it uses of them)
   const options = { engine, disk, press, setting: g.setting, control: g.control, svg: () => screenIn(stage), inset: plain && g.mini ? title.inset : null };
-  const makeView = () => { const v = make(stage, options); v.cleanText = cleanText.value; v.monitor = monitor.value; onView?.(v); return v; };
+  const makeView = () => { const v = make(stage, options); v.cleanText = cleanText.value; showMonitor(v); onView?.(v); return v; };
   let view = makeView();
-  monitor.on(value => { view.monitor = value; view.prompts?.(); });
+  monitor.on(() => { showMonitor(view); if (view.paintsMonitor) view.prompts?.(); });
   engine.on(e => queue.push([e, view.snapshot?.({ ...e }) ?? { ...e }]));
   // The mini view, where the page gives one (`mini`) and the title has a place for it in the plain view (its title.js
   // `inset`): Off, Live or Pictures, a setting; shown in the band at the top of the screen while the band is there. A

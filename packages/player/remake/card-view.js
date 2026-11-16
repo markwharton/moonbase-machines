@@ -3,7 +3,8 @@
 // 384. The toolkit's pictures are bitmaps, and this is them as they are; drawing them sharper is for later.
 //
 // The screen is painted for the monitor the Monitor setting names (`monitor`, set by engines/scenes.js): a colour
-// monitor, or a monochrome one in its phosphor's colour.
+// monitor, or a monochrome one in its phosphor's colour. The view says it paints the monitor itself (`paintsMonitor`),
+// so the engine puts no filter over it.
 //
 // If the title's title.js has `text`, its words are painted again in one colour, without the colour fringes
 // (clean-text.js), while Clean text is on (`cleanText`, set by engines/scenes.js). A monochrome monitor shows no
@@ -12,14 +13,15 @@
 // `inset` (a title's, its title.js), when set on: the screen's band at the top, where it is (its rows above
 // `top` all lit), its dots `move` moved `by`, to make room for a mini view; `banded`, whether the band was there
 // at the last painting.
-import { paintHires, paintText, PHOSPHORS } from '@moonbase-machines/apple2e/screen.js';
+import { paintHires, paintText } from '@moonbase-machines/apple2e/screen.js';
+import { MONITOR } from '../declared.js';
 import { CleanText } from './clean-text.js';
 
 const NS = 'http://www.w3.org/2000/svg', WHITE = [255, 255, 255];
 
 export class CardView {
   constructor(svg, { engine, inset = null }) {
-    this.svg = svg; this.engine = engine; this.inset = inset; this.insetOn = false; this.banded = false; this.cleanText = true; this.monitor = 'colour';
+    this.svg = svg; this.engine = engine; this.inset = inset; this.insetOn = false; this.banded = false; this.cleanText = true; this.monitor = 'colour'; this.paintsMonitor = true;
     svg.setAttribute('viewBox', '0 0 560 384');
     this.canvas = document.createElement('canvas'); this.canvas.width = 560; this.canvas.height = 384;
     this.image = document.createElementNS(NS, 'image');
@@ -33,7 +35,7 @@ export class CardView {
   prompts() {
     const mem = this.engine.mem, s = this.engine.switches, ctx = this.canvas.getContext('2d');
     const pixels = ctx.createImageData(560, 384), page = s.page2 ? 0x4000 : 0x2000;
-    const ink = PHOSPHORS[this.monitor], lit = ink ?? WHITE;   // (a monochrome monitor's phosphor, or none on colour)
+    const ink = MONITOR.phosphors[this.monitor], lit = ink ?? WHITE;   // (a monochrome monitor's phosphor, or none on colour)
     if (s.text) paintText(pixels.data, mem, mem, false, [0, 24], lit);
     else {
       paintHires(pixels.data, mem.subarray(page, page + 0x2000), ink);

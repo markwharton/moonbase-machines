@@ -3,9 +3,9 @@
 //   node --test packages/apple2e/test/screen.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { paintHires, paintText, paint, screen, textRow, PHOSPHORS } from '../screen.js';
+import { paintHires, paintText, paint, screen, textRow } from '../screen.js';
 
-const GREEN = PHOSPHORS.green, BLACK = [0, 0, 0];
+const GREEN = [51, 255, 51], BLACK = [0, 0, 0];
 const rgba = () => new Uint8ClampedArray(560 * 384 * 4);
 const at = (px, x, y) => [...px.subarray((y * 560 + x) * 4, (y * 560 + x) * 4 + 3)];
 // The first row of a hi-res page holding these bytes, painted, as one string of the row's first pixels: # lit, . dark.

@@ -6,10 +6,9 @@ export { COLORS };
 
 import { FONT } from '@moonbase-machines/charset/font.js';
 
-// The phosphor colours of the monochrome monitors. A painter given one of these as its `ink` paints the screen as that
-// monitor shows it: each lit dot in the phosphor's colour and each dark dot black. Without `ink`, a painter paints the
-// screen as a colour monitor shows it.
-export const PHOSPHORS = { green: [51, 255, 51], amber: [255, 176, 0], white: [230, 236, 255] };
+// A painter given a colour as its `ink`, [red, green, blue], paints the screen as a monochrome monitor with a
+// phosphor of that colour shows it: each lit dot in the colour and each dark dot black. Without `ink`, a painter
+// paints the screen as a colour monitor shows it.
 const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
 
 // the text page: 24 rows of 40 characters, a row's start being 0x400 * 0 + 0x80 * (r % 8) +

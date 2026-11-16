@@ -18,13 +18,13 @@ import { Speaker } from '../audio.js';
 import { typing as typingOf } from '../keys.js';
 import { pace } from '@moonbase-machines/mos6502/pace.js';
 
-// The settings the Apple's engine acts on (play.js `setting`): the monitor the screen is shown on, and the pictures
-// drawn as vectors over the screen. Both take effect at the next frame.
+// The settings this engine acts on (play.js `setting`): the monitor the screen is shown on, and an Apple game's
+// pictures drawn as vectors over the screen. Both take effect at the next frame.
 import { MONITOR, VECTORS } from '../declared.js';
 
-// The settings this engine acts on for a game (play.js `using`): an Apple game's monitor, and its pictures drawn as
-// vectors where its title's toolkit has an overlay. A Commodore 64 game's are the player's own.
-export const uses = ({ title, game }) => game.kind === 'c64' ? [] : [MONITOR, ...(title?.toolkit?.overlay ? [VECTORS] : [])];
+// The settings this engine acts on for a game (play.js `using`): the monitor, and an Apple game's pictures drawn as
+// vectors where its title's toolkit has an overlay.
+export const uses = ({ title, game }) => [MONITOR, ...(game.kind !== 'c64' && title?.toolkit?.overlay ? [VECTORS] : [])];
 
 export async function play(g, { remake = false } = {}) {
   g.stage.innerHTML = '<svg id="vector" viewBox="0 0 140 192" preserveAspectRatio="none"></svg><canvas id="screen" width="560" height="384" tabindex="0"></canvas>';
@@ -36,7 +36,7 @@ export async function play(g, { remake = false } = {}) {
 // ROMs and the game's disk images, where the page gives them (`roms`), it is line 1, the Apple itself booting the
 // disks; without them, moonbase's (line 2), the game started at once.
 async function apple({ title, game, saves, roms: makers, say, setting }, { canvas, ctx, layer, speaker }) {
-const [{ Machine }, { placed }, { screen, PHOSPHORS }] = await Promise.all([
+const [{ Machine }, { placed }, { screen }] = await Promise.all([
   import('@moonbase-machines/apple2e/machine.js'), import('@moonbase-machines/apple2e/prodos.js'),
   import('@moonbase-machines/apple2e/screen.js')]);
 const monitor = setting(MONITOR), vectors = title?.toolkit?.overlay ? setting(VECTORS) : { value: false };
@@ -72,7 +72,7 @@ function after() {
   speaker.feed(sound ? m.clicks : [], m.cpu.cycles); m.clicks.length = 0;
   if (!hooked) hooked = overlay();
   const text = m.sw.text;
-  screen(m, rgba, { cols, owner: vectors.value && layer.innerHTML ? m.owner : null, ink: PHOSPHORS[monitor.value] });
+  screen(m, rgba, { cols, owner: vectors.value && layer.innerHTML ? m.owner : null, ink: MONITOR.phosphors[monitor.value] });
   ctx.putImageData(image, 0, 0);
   layer.style.visibility = vectors.value && !text ? 'visible' : 'hidden';
   if (m.halted) say('The game has stopped: ' + m.halted + '.', { error: true });
@@ -98,6 +98,7 @@ return {
 // taking each key when it asks for one; the person's first key or push of the stick drops what is left of it.
 async function c64(g, { canvas, layer, speaker, remake }) {
   const { game, saves, roms: makers, studies, say, printer } = g;
+  const monitor = g.setting(MONITOR);
   const [{ C64 }, { keyboard, painter }, { SID }, { c64Roms, typed: startTyped }, { add }] = await Promise.all([
     import('@moonbase-machines/c64/machine.js'), import('@moonbase-machines/c64/browser.js'),
     import('@moonbase-machines/c64/sid.js'), import('@moonbase-machines/c64/start.js'), import('@moonbase-machines/c64/d64.js')]);
@@ -150,7 +151,7 @@ async function c64(g, { canvas, layer, speaker, remake }) {
       if (typing !== null) { typing = m.type(typing); if (!typing.length) typing = null; }
       else if (demo !== null && typed) { demo = m.type(demo); if (!demo.length) demo = null; }
     }
-    draw(m.vic.frame);
+    draw(m.vic.frame, MONITOR.phosphors[monitor.value]);
     if (m.halted) say('The game has stopped: ' + m.halted + '.', { error: true });
     else say('Running.');
   }

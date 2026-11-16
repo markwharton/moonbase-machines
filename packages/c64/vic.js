@@ -6,6 +6,10 @@
 export const PALETTE = [[0, 0, 0], [255, 255, 255], [136, 0, 0], [170, 255, 238], [204, 68, 204], [0, 204, 85], [0, 0, 170], [238, 238, 119],
   [221, 136, 85], [102, 68, 0], [255, 119, 119], [51, 51, 51], [119, 119, 119], [170, 255, 102], [0, 136, 255], [187, 187, 187]];
 
+// The 64's sixteen colours as a monochrome monitor shows them: each colour's brightness, in the colour `ink` of the
+// monitor's phosphor, [red, green, blue].
+export const shades = ink => PALETTE.map(([r, g, b]) => { const y = (0.299 * r + 0.587 * g + 0.114 * b) / 255; return ink.map(c => Math.round(c * y)); });
+
 export const WIDTH = 384, HEIGHT = 272, LEFT = 32, TOP = 35;   // where the 320 by 200 screen sits in the frame
 const FIRST_LINE = 16, LAST_LINE = 287;   // the raster lines of the frame's 272, out of 312
 

@@ -101,11 +101,10 @@ test('a setting\'s type: on or off, or one of fixed values', () => {
   assert.throws(() => check('text', 'x'), /no such type/);
 });
 
-test('the Monitor setting is Colour, or a monochrome monitor in a phosphor the Apple\'s screen paints', async () => {
+test('the Monitor setting is Colour, or a monochrome monitor that has a phosphor\'s colour', async () => {
   const { MONITOR } = await import('@moonbase-machines/player/declared.js');
-  const { PHOSPHORS } = await import('@moonbase-machines/apple2e/screen.js');
   assert.equal(MONITOR.default, 'colour');
-  assert.deepEqual(MONITOR.type.filter(v => v !== 'colour'), Object.keys(PHOSPHORS));
+  assert.deepEqual(MONITOR.type.filter(v => v !== 'colour'), Object.keys(MONITOR.phosphors));
   assert.equal(MONITOR.labels.length, MONITOR.type.length);
 });
 
@@ -423,16 +422,16 @@ test('each engine says which settings it uses, from the title and the game\'s da
   const { SPEED, CLEAN_TEXT, MONITOR, MINI, VECTORS } = await import('@moonbase-machines/player/declared.js');
   const names = defs => defs.map(d => d.name);
   const toolkit = { view: () => null, text: true, overlay: () => () => true };
-  assert.deepEqual(names(remake({ title: { toolkit }, game: { kind: 'prodos' } })), names([CLEAN_TEXT]), 'a title whose toolkit has a view that draws text');
-  assert.deepEqual(names(remake({ title: { toolkit: { view: () => null } }, game: { kind: 'prodos' } })), names([]), 'a title whose toolkit has a view that draws no text');
+  assert.deepEqual(names(remake({ title: { toolkit }, game: { kind: 'prodos' } })), names([CLEAN_TEXT, MONITOR]), 'a title whose toolkit has a view that draws text');
+  assert.deepEqual(names(remake({ title: { toolkit: { view: () => null } }, game: { kind: 'prodos' } })), names([MONITOR]), 'a title whose toolkit has a view that draws no text');
   assert.deepEqual(names(remake({ title: { text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([CLEAN_TEXT, MONITOR, MINI]), 'a title with no toolkit, with text and a mini view');
   assert.deepEqual(names(remake({ title: {}, game: { kind: 'dos33' } })), names([MONITOR]), 'a title with no toolkit, without text');
-  assert.deepEqual(names(remake({ title: { view: () => null, toolkit, text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([]), 'a driver with a view of its own, which reads the settings its driver declares');
+  assert.deepEqual(names(remake({ title: { view: () => null, toolkit, text: { font: 1 }, inset: {} }, game: { kind: 'dos33' }, mini: () => {} })), names([MONITOR]), 'a driver with a view of its own, which reads the settings it declares');
   assert.deepEqual(names(remake({ title: { warp: () => true }, game: { kind: 'dos33' } })), names([SPEED, MONITOR]), 'a title that says what warps');
-  assert.deepEqual(names(remake({ title: { warp: () => true, view: () => null }, game: { kind: 'dos33' } })), names([SPEED]), 'a driver with a view of its own that says what warps');
-  assert.deepEqual(remake({ title: {}, game: { kind: 'c64' } }), [], 'a Commodore 64 title');
+  assert.deepEqual(names(remake({ title: { warp: () => true, view: () => null }, game: { kind: 'dos33' } })), names([SPEED, MONITOR]), 'a driver with a view of its own that says what warps');
+  assert.deepEqual(names(remake({ title: {}, game: { kind: 'c64' } })), names([MONITOR]), 'a Commodore 64 title');
   assert.deepEqual(names(original({ title: { toolkit }, game: { kind: 'prodos' } })), names([MONITOR, VECTORS]), 'an Apple game whose toolkit has an overlay');
   assert.deepEqual(names(original({ title: {}, game: { kind: 'prodos' } })), names([MONITOR]), 'an Apple game with no toolkit');
   assert.deepEqual(names(original({ title: null, game: { kind: 'prodos' } })), names([MONITOR]), 'an Apple game with no title');
-  assert.deepEqual(original({ game: { kind: 'c64' } }), [], 'a Commodore 64 game');
+  assert.deepEqual(names(original({ game: { kind: 'c64' } })), names([MONITOR]), 'a Commodore 64 game');
 });

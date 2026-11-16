@@ -19,7 +19,7 @@
 //                                                      each frame, after(frames) each animation frame
 import { MATRIX, SHIFTED, WITH_SHIFT, CURSOR, MODIFIERS, JOYSTICK, STICK, checkFire } from './keys.js';
 import { pace as paced } from '@moonbase-machines/mos6502/pace.js';
-import { PALETTE, WIDTH, HEIGHT } from './vic.js';
+import { PALETTE, shades, WIDTH, HEIGHT } from './vic.js';
 
 const PAD_DEAD = 0.4;   // a stick pushed less far than this is at rest (the dead zone)
 
@@ -129,9 +129,13 @@ export function painter(canvas) {
   const ctx = canvas.getContext('2d');
   canvas.width = WIDTH * 2; canvas.height = HEIGHT * 2;
   const rgba = new Uint8ClampedArray(WIDTH * 2 * HEIGHT * 2 * 4), image = new ImageData(rgba, WIDTH * 2, HEIGHT * 2);
-  return f => {
+  // The frame painted on the canvas. With `ink`, a phosphor's colour, it is painted as a monochrome monitor shows it.
+  let inked = null, mono = null;
+  return (f, ink) => {
+    if (ink && ink !== inked) { inked = ink; mono = shades(ink); }
+    const palette = ink ? mono : PALETTE;
     for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) {
-      const [r, g, b] = PALETTE[f[y * WIDTH + x]];
+      const [r, g, b] = palette[f[y * WIDTH + x]];
       for (let dy = 0; dy < 2; dy++) { let o = (((y * 2 + dy) * WIDTH * 2) + x * 2) * 4; for (let dx = 0; dx < 2; dx++) { rgba[o++] = r; rgba[o++] = g; rgba[o++] = b; rgba[o++] = 255; } }
     }
     ctx.putImageData(image, 0, 0);

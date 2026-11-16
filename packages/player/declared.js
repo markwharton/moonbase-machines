@@ -14,8 +14,10 @@ export const SPEED = { name: 'speed', type: ['original', 'turbo'], default: 'tur
 // Clean text applies only where a remake draws clean text: the vector titles, and card titles with `text`. With it
 // off, the words are drawn as the game drew them.
 export const CLEAN_TEXT = { name: 'clean-text', type: 'boolean', default: true, owner: 'person', words: 'Clean text' };
-// The monitor an Apple game is shown on: a colour monitor, or a monochrome monitor in the colour of its phosphor. Each
-// monochrome value names its phosphor in @moonbase-machines/apple2e/screen.js `PHOSPHORS`.
-export const MONITOR = { name: 'monitor', type: ['colour', 'green', 'amber', 'white'], default: 'colour', owner: 'person', words: 'Monitor', labels: ['Colour', 'Green', 'Amber', 'White'] };
+// The monitor a game is shown on: a colour monitor, or a monochrome monitor in the colour of its phosphor. Its
+// `phosphors` are the colour of each monochrome monitor's phosphor, by the setting's value. A screen's painter is
+// given one as its `ink`. Colour has none.
+export const MONITOR = { name: 'monitor', type: ['colour', 'green', 'amber', 'white'], default: 'colour', owner: 'person', words: 'Monitor', labels: ['Colour', 'Green', 'Amber', 'White'],
+  phosphors: { green: [51, 255, 51], amber: [255, 176, 0], white: [230, 236, 255] } };
 export const MINI ={ name: 'mini', type: ['', 'live', 'pictures'], default: '', owner: 'person', words: 'Mini view', labels: ['Off', 'Live', 'Pictures'] };
 export const VECTORS = { name: 'vectors', type: 'boolean', default: false, owner: 'person', words: 'Draw the pictures as vectors' };
