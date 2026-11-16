@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.0] - 2026-11-16
+
+### Added
+
+- blitz-encode.js encodes statements as Blitz! code (368290b)
+- the observer reports each routine a game calls as an event (b6335e2)
+- the observer reports calls made inside a routine (522c019)
+- Game runs an Apple title's own code on the machine (cdb8ccb)
+- the Remake's clock has a tick, a scale and warp (df7523c)
+- Game runs a title with no toolkit (36053ef)
+- a Commodore 64 Remake runs on the 64 with Moonbase's ROMs (9344ed2)
+- code-files.js lists a game's code files and where each loads (6d7bd93)
+- steps.js defines the vector toolkit's steps (9cf3059)
+- steps.js defines the KERNAL's steps (38d196e)
+- steps.js defines the Apple ROM's steps (611ac03)
+- a stretch of code a title names keeps the original's time (90f4c85)
+- any title can name a stretch of its game's code (a27dca4)
+- a title's driver can supply its own view (0fa695c)
+- a driver's warp can cover the game's own code (5487839)
+- the player has a Speed setting, Original or Turbo (e5593ff)
+
+### Fixed
+
+- the vector view draws a title's own glyphs (8eee452)
+- a 64 game stops with a message at an unwritten ROM routine (033a7bd)
+
+### Changed
+
+- steps.js lists the vector steps that only draw (34a9955)
+- the script engine is removed (59fdafe)
+- a step is defined by its toolkit, machine or driver (5138ccd)
+- a driver supplies its toolkit (0d12694)
+
+### Documentation
+
+- the Speed section says immediately (98df984)
+
+### Maintenance
+
+- a test that fixes.js gives the drive the fixed program (a574cd2)
+- moonbase-play maps every installed package (1220e59)
+- package-lock.json matches the packages (ae81c04)
+
 ## [v0.21.0] - 2026-11-15
 
 ### Added
@@ -317,3 +360,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 [v0.19.0]: https://github.com/markwharton/moonbase/compare/v0.18.0...v0.19.0
 [v0.20.0]: https://github.com/markwharton/moonbase/compare/v0.19.0...v0.20.0
 [v0.21.0]: https://github.com/markwharton/moonbase/compare/v0.20.0...v0.21.0
+[v0.22.0]: https://github.com/markwharton/moonbase/compare/v0.21.0...v0.22.0
