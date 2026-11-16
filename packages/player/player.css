@@ -4,7 +4,9 @@
    --accent-ink, --sans), else these. */
 
 /* (the stage's size the player's, play.js `fit`: a whole number of the device's pixels to each of the screen's dots) */
-.player .stage { position: relative; margin: 0 auto; background: var(--screen, #000); border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px -12px #0006; }
+/* The stage's corners are rounded by two and a half of the screen's dots, whatever size the screen is shown at
+   (play.js `fit` sets --scale), so a small screen loses no more of its corners than a large one. */
+.player .stage { position: relative; margin: 0 auto; background: var(--screen, #000); border-radius: calc(var(--scale, 4) * 2.5px); overflow: hidden; box-shadow: 0 10px 30px -12px #0006; }
 .player .stage canvas, .player .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .player .stage canvas { image-rendering: pixelated; }
 /* the remake's mini view, where the page gives one: in the band at the top of the screen, placed by the title's inset */
