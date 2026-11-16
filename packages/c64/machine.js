@@ -146,6 +146,8 @@ export class C64 {
   runLine() {
     const until = this.cpu.cycles + CYCLES_PER_LINE, display = this.cpu.cycles + DISPLAY_START;
     let drawn = false;
+    // The VIC-II's interrupt, as the line starts: its raster interrupt comes at the start of the line it names.
+    if (this.vic.irq()) this.cpu.irq();
     while (this.cpu.cycles < until && !this.halted) {
       if (!drawn && this.cpu.cycles >= display) { this.vic.line(this.line); drawn = true; }
       const before = this.cpu.cycles;
@@ -163,7 +165,6 @@ export class C64 {
       this.nmiLine = nmi;
     }
     if (!drawn) this.vic.line(this.line);
-    if (this.vic.irq()) this.cpu.irq();
     this.line = (this.line + 1) % LINES;
     if (this.line === 0) this.frame++;
   }
